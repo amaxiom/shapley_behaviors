@@ -1,0 +1,459 @@
+BEHAVIORAL SPACE ANALYSIS TOOLKIT - COMPREHENSIVE DESCRIPTION
+==============================================================
+
+OVERVIEW
+--------
+Two complementary Python tools for analyzing compositional datasets using Shapley value-based 
+behavioral transformations. Designed for materials science (alloys, MXenes) but applicable to 
+any high-dimensional compositional data.
+
+==============================================================
+TOOL 1: BEHAVIORAL_SPACE_EXPLORER.PY
+==============================================================
+
+PURPOSE
+-------
+Generates and analyzes four behavioral space transformations (variance, skewness, kurtosis, 
+entropy) from compositional features, revealing clustering patterns invisible in original 
+feature space. Creates comprehensive visualizations colored by labels and feature concentrations.
+
+INPUT REQUIREMENTS
+------------------
+User provides configuration variables BEFORE running:
+
+REQUIRED:
+- SEED: Random seed for reproducibility (int)
+- N_PERMUTATIONS: Number of Shapley permutations, typically 100-1000 (int)
+- N_JOBS: Parallel workers, -1 for all cores (int)
+- DATASET_NAME: Short identifier for file naming, e.g. "Al", "mxene" (str)
+- DATA_FILE: Path to CSV file (str)
+- ID_COLUMN: Column name to use as sample index, e.g. "ID", "Formula" (str)
+- DROP_COLUMNS: List of non-feature, non-label columns to ignore (list of str)
+- LABEL_COLUMNS: Target/response variables for visualization (list of str)
+- OUTPUT_DIR: Directory for all outputs (str)
+
+OPTIONAL:
+- SELECTED_FEATURES: 3 features to visualize with concentration gradients (list of str or None)
+- CREATE_OUTLIER_PROFILES: Generate automatic profile plots for outliers (bool, default True)
+- MAX_OUTLIERS_PER_SPACE: Number of top outliers to profile per space (int, default 5)
+
+EXECUTION
+---------
+In Jupyter: Define variables, then: %run -i behavioral_space_explorer.py
+Standalone: python behavioral_space_explorer.py (if variables hardcoded)
+
+PROCESSING WORKFLOW
+-------------------
+1. DATA LOADING
+   - Reads CSV, sets ID_COLUMN as index
+   - Drops DROP_COLUMNS
+   - Extracts LABEL_COLUMNS into labels_dict
+   - Auto-detects label types: categorical (≤20 unique, <5% of total) or continuous
+   - Removes remaining non-numeric columns (warns user)
+   - Creates feature matrix X (samples × numeric_features)
+
+2. BEHAVIORAL SPACE COMPUTATION
+   - Computes 4 Shapley behavioral transformations on X:
+     a) Variance space: Shapley values using variance as coalition value function
+     b) Skewness space: Shapley values using skewness
+     c) Kurtosis space: Shapley values using kurtosis  
+     d) Entropy space: Shapley values using Shannon entropy
+   - Each produces matrix (samples × features) quantifying each feature's contribution
+   - Uses Monte Carlo permutation sampling with N_PERMUTATIONS iterations
+   - Parallelized across features with N_JOBS workers
+   - Saves all spaces to {DATASET_NAME}_behavioral_spaces_all.npy
+
+3. STATISTICAL ANALYSIS (for each space including original)
+   - Hopkins statistic: Measures clustering tendency (0=random, 1=highly clustered)
+   - P-value: Permutation test comparing to null distribution
+   - Variance concentration: Fraction of variance in PC1+PC2 after PCA
+   - Coefficient of variation: Pairwise distance heterogeneity (higher = more clustered)
+   - Outlier detection: Z-score method on behavioral magnitude (threshold=2.5)
+   - Saves statistics to CSVs
+
+4. VISUALIZATION GENERATION
+   For each behavioral space + original space (5 total):
+   
+   a) LABEL PLOTS (one per label in LABEL_COLUMNS):
+      - Applies MinMaxScaler + PCA (2 components) to space
+      - Colors points by label values
+      
+      CONTINUOUS LABELS (auto-detected):
+      - Viridis colormap with colorbar
+      - Missing values: RED circles, rotated "Missing" annotation
+      
+      CATEGORICAL LABELS (auto-detected):
+      - Discrete viridis colors (one per category)
+      - Different marker shapes cycling: o, s, ^, D, v, <, >, p, *, h
+      - Legend showing all categories
+      - Missing values: RED X markers in legend as "Missing"
+   
+   b) FEATURE CONCENTRATION PLOTS (if SELECTED_FEATURES provided):
+      - Grey (low) to Red (high) gradient colormap
+      - Shows spatial distribution of each selected feature
+   
+   All plots: 6×5 inch, 300 DPI, viridis/grey-red colormaps, NO bold fonts
+   Filename pattern: {DATASET_NAME}_behave_{space}_{label/feature}.png
+
+OUTPUT FILES
+------------
+behavioral_exploration/{DATASET_NAME}_behavioral_spaces_all.npy
+  - Dictionary: {'variance': array, 'skewness': array, 'kurtosis': array, 'entropy': array}
+
+behavioral_exploration/{DATASET_NAME}_hopkins_statistics.csv
+  - Columns: Space, Hopkins_Statistic, P_Value
+  
+behavioral_exploration/{DATASET_NAME}_clustering_statistics.csv
+  - Columns: variance_pc1_pc2, cv_pairwise_distance, mean_pairwise_distance, std_pairwise_distance
+  - Rows: original, variance, skewness, kurtosis, entropy
+
+behavioral_exploration/{DATASET_NAME}_outliers_{space}.csv (4 files, one per behavioral space)
+  - Columns: Sample_Index, Sample_ID, Outlier_Score, Behavior_Magnitude
+
+behavioral_exploration/{DATASET_NAME}_behave_{space}_{label}.png
+  - Total: (# labels + # selected_features) × 5 spaces
+
+behavioral_exploration/{DATASET_NAME}_profile_{space}_outlier_{rank}_{sample_id}.png (optional)
+  - Profile plots for top outliers (if CREATE_OUTLIER_PROFILES = True)
+  - Shows feature-level Shapley value breakdown for each outlier
+  - Up to MAX_OUTLIERS_PER_SPACE per behavioral space
+
+TYPICAL USAGE PATTERNS
+-----------------------
+Aluminium Alloys:
+  DATASET_NAME = "Al"
+  DATA_FILE = "al_data.csv"
+  ID_COLUMN = "ID"
+  DROP_COLUMNS = ["Processing", "Specific", "General", "Age", "Solution", "Hardened", "None"]
+  LABEL_COLUMNS = ['Elongation', 'Tensile_Strength', 'Yield_Strength']  # Continuous
+  SELECTED_FEATURES = ['Si', 'Fe', 'Mn']  # Common alloying elements
+
+MXenes:
+  DATASET_NAME = "mxene"
+  DATA_FILE = "mxene_mendeleev.csv"
+  ID_COLUMN = "Formula"
+  DROP_COLUMNS = ["ID", "In-plane_lattice", "Intercalated_lattice"]
+  LABEL_COLUMNS = ['Voltage', 'Capacity', 'Charge', 'M', 'X', 'T', 'Z']  # Mixed: continuous + categorical
+  SELECTED_FEATURES = ['Ti', 'V', 'Cr']  # Transition metals
+
+KEY INSIGHTS PROVIDED
+----------------------
+1. Which behavioral space shows strongest clustering (highest Hopkins)
+2. Which space has best 2D projection (highest PC1+PC2 variance)
+3. Which space has most heterogeneous structure (highest CV)
+4. Outlier samples with unusual behavioral signatures
+5. Label correlations with behavioral patterns
+6. Feature concentration distributions in behavioral vs original space
+
+INTERPRETATION GUIDE
+--------------------
+- High Hopkins (>0.7): Strong natural clusters exist
+- High PC1+PC2 variance (>60%): 2D visualization captures structure well
+- High CV (>0.3): Distinct clusters with large separation
+- Outliers: Samples with unusual feature interaction patterns
+- Behavioral spaces reveal structure INVISIBLE in original compositional space
+- Different spaces highlight different aspects of compositional behavior
+
+==============================================================
+TOOL 2: BEHAVIORAL_REGION_EXPLORER.PY
+==============================================================
+
+PURPOSE
+-------
+Enables user-defined region selection in behavioral spaces, extracts samples, analyzes 
+their compositional and label characteristics, and compares across regions. Validates 
+that behavioral transformations reveal meaningful structure absent in original space.
+
+INPUT REQUIREMENTS
+------------------
+User provides configuration variables BEFORE running:
+
+REQUIRED (same as space_explorer):
+- DATASET_NAME, DATA_FILE, ID_COLUMN, DROP_COLUMNS, LABEL_COLUMNS, OUTPUT_DIR
+- BEHAVIORAL_SPACES_FILE: Path to .npy file from behavioral_space_explorer.py
+
+NEW REQUIRED:
+- PLOT_MODE: 'combined' (all regions per space) or 'separate' (one plot per region)
+- USER_REGIONS: Dictionary defining regions of interest
+
+USER_REGIONS STRUCTURE
+----------------------
+{
+    'region_name': {
+        'space': 'variance' | 'skewness' | 'kurtosis' | 'entropy',
+        'pc1_range': (min_float, max_float),  # PC1 boundaries
+        'pc2_range': (min_float, max_float),  # PC2 boundaries
+        'description': 'Human-readable description',
+        'color': 'red' | 'blue' | 'green' | etc.  # For visualization
+    },
+    # ... more regions
+}
+
+WORKFLOW
+--------
+User first runs behavioral_space_explorer.py, visually inspects plots, identifies 
+interesting regions, then defines USER_REGIONS based on observed PC1/PC2 coordinates.
+
+EXECUTION
+---------
+In Jupyter: Define variables including USER_REGIONS, then: %run -i behavioral_region_explorer.py
+
+PROCESSING WORKFLOW
+-------------------
+1. DATA LOADING
+   - Loads same data as space_explorer
+   - Loads behavioral_spaces from .npy file
+   - Creates feature matrix X (numeric only)
+
+2. REGION EXTRACTION (for each region in USER_REGIONS)
+   - Gets behavioral space specified in region['space']
+   - Applies MinMaxScaler + PCA to that space
+   - Identifies samples where PC1 ∈ pc1_range AND PC2 ∈ pc2_range
+   - Stores: sample IDs, array indices, PC1/PC2 coordinates
+
+3. VISUALIZATION
+   
+   COMBINED MODE (PLOT_MODE='combined'):
+   - One plot per behavioral space (only spaces with regions)
+   - All samples in grey
+   - Region samples in their specified colors, larger markers
+   - Rectangle boundaries showing PC1/PC2 ranges
+   - Legend with region names and sample counts
+   
+   SEPARATE MODE (PLOT_MODE='separate'):
+   - One plot per region
+   - Shows only that region highlighted on grey background
+   
+   Files: {DATASET_NAME}_regions_{space}_combined.png or {DATASET_NAME}_region_{name}.png
+
+4. COMPOSITION ANALYSIS (for each region)
+   - For EVERY feature in feature_columns:
+     * N_Present: Count of samples where feature > 0
+     * Pct_Present: Percentage present
+     * Mean, Std, Min, Max, Median: Region statistics
+     * All_Mean, All_Median: Dataset-wide statistics for comparison
+     * Change_Mean_%: 100 × (Region_Mean - All_Mean) / All_Mean
+     * Change_Median_%: Similar for median
+   - Sorted by mean concentration (descending)
+   - Saves: {DATASET_NAME}_region_{name}_composition_table.csv
+   - Also saves: {DATASET_NAME}_region_{name}_composition_stats.csv (describe() output)
+
+5. LABEL ANALYSIS (for each region)
+   - For EVERY label in LABEL_COLUMNS:
+     * N_Valid, N_Missing, Pct_Valid
+     * Mean, Std, Min, Max, Median (for valid data)
+     * All_Mean, All_Median (dataset-wide)
+     * Change_Mean_%, Change_Median_%
+   - Handles missing data gracefully
+   - Saves: {DATASET_NAME}_region_{name}_label_table.csv
+   - Also saves: {DATASET_NAME}_region_{name}_label_stats.csv
+
+6. CROSS-REGION COMPARISONS
+   
+   a) LABEL COMPARISON SUMMARY:
+      - Rows: Regions
+      - Columns: Region, Space, N_Samples, Pct_Total, then for each label:
+        {label}_mean, {label}_std, {label}_min, {label}_max, {label}_missing
+      - File: {DATASET_NAME}_regions_comparison_summary.csv
+   
+   b) COMPOSITION COMPARISON:
+      - Rows: Features (sorted by overall mean)
+      - Columns: For each region: {region}_mean, {region}_std
+      - Shows mean ± std for every feature across all regions
+      - File: {DATASET_NAME}_regions_composition_comparison.csv
+
+7. COMPARATIVE VISUALIZATIONS
+   
+   a) LABEL BOX PLOTS (one plot per label):
+      - Separate figure for each label
+      - Box plot comparing all regions
+      - Colored by region colors
+      - Red diamonds = mean, black line = median
+      - Sample counts displayed above boxes
+      - File: {DATASET_NAME}_label_{label}_boxplot.png
+   
+   b) SAMPLE DISTRIBUTION:
+      - Bar chart of sample counts per region
+      - Colored by region colors
+      - Shows count and % of total
+      - Red dashed line = total dataset size
+      - File: {DATASET_NAME}_sample_distribution.png
+   
+   c) COMPOSITION HEATMAP:
+      - Rows: Top 20 features by overall mean
+      - Columns: Regions
+      - Color: YlOrRd (yellow-orange-red)
+      - Values displayed in cells
+      - File: {DATASET_NAME}_composition_heatmap.png + _heatmap_data.csv
+
+8. ORIGINAL VS BEHAVIORAL SPACE COMPARISONS (KEY VALIDATION)
+   
+   For each behavioral space that has defined regions:
+   
+   a) SIDE-BY-SIDE COMPARISON:
+      - LEFT: Original compositional space (PCA of feature matrix X)
+        * Same region samples colored
+        * NO clustering visible - samples scattered randomly
+      
+      - RIGHT: Behavioral space (PCA of Shapley values)
+        * Same region samples colored + rectangle boundaries
+        * CLEAR clustering visible - regions well-separated
+      
+      - Shared legend showing all regions
+      - File: {DATASET_NAME}_original_vs_{space}_comparison.png
+   
+   b) ALL REGIONS OVERLAY:
+      - Single plot showing ALL regions from ALL behavioral spaces
+      - Overlaid on original compositional space PCA
+      - Different colors for each region
+      - Legend shows region name, space, and sample count
+      - Demonstrates that regions from different behavioral spaces
+        DO NOT cluster in original space
+      - File: {DATASET_NAME}_all_regions_in_original_space.png
+
+OUTPUT FILES (per region)
+--------------------------
+{DATASET_NAME}_region_{name}_samples.csv
+  - Columns: Sample_ID, Array_Index, PC1, PC2
+
+{DATASET_NAME}_region_{name}_composition_table.csv
+  - All features with statistics and change %
+
+{DATASET_NAME}_region_{name}_composition_stats.csv
+  - pandas describe() output
+
+{DATASET_NAME}_region_{name}_label_table.csv
+  - All labels with statistics and change %
+
+{DATASET_NAME}_region_{name}_label_stats.csv
+  - pandas describe() output
+
+{DATASET_NAME}_region_{name}_full_data.csv
+  - Complete dataset for all samples in region
+
+OUTPUT FILES (cross-region)
+----------------------------
+{DATASET_NAME}_regions_comparison_summary.csv
+{DATASET_NAME}_regions_composition_comparison.csv
+{DATASET_NAME}_label_{label}_boxplot.png (one per label)
+{DATASET_NAME}_sample_distribution.png
+{DATASET_NAME}_composition_heatmap.png + _heatmap_data.csv
+{DATASET_NAME}_regions_{space}_combined.png (if PLOT_MODE='combined')
+{DATASET_NAME}_region_{name}.png (if PLOT_MODE='separate')
+{DATASET_NAME}_original_vs_{space}_comparison.png (one per behavioral space with regions)
+{DATASET_NAME}_all_regions_in_original_space.png
+
+KEY VALIDATION
+--------------
+The original vs behavioral space comparisons provide CRITICAL validation:
+
+1. Regions that cluster tightly in behavioral space DO NOT cluster in original space
+2. This proves the behavioral transformation reveals structure
+3. Structure is NOT just artifacts of PCA on original features
+4. Different behavioral spaces capture different compositional behaviors
+5. User-defined regions correspond to meaningful compositional patterns
+
+INTERPRETATION WORKFLOW
+------------------------
+1. Run behavioral_space_explorer.py → identify interesting clusters
+2. Define USER_REGIONS based on visual inspection of PC1/PC2 coordinates
+3. Run behavioral_region_explorer.py → extract region statistics
+4. Examine composition tables: Which features are enriched/depleted?
+5. Examine label tables: Do regions have different label distributions?
+6. Examine box plots: Are label differences statistically meaningful?
+7. Examine original vs behavioral: Confirms regions are meaningful, not artifacts
+8. Use Change_% columns to quantify compositional differences vs dataset average
+
+EXAMPLE USE CASE
+----------------
+Aluminium Alloys - Identifying high-strength regions:
+
+USER_REGIONS = {
+    'high_strength': {
+        'space': 'variance',
+        'pc1_range': (0.3, 0.6),
+        'pc2_range': (-0.2, 0.2),
+        'description': 'High tensile strength cluster',
+        'color': 'red'
+    },
+    'high_ductility': {
+        'space': 'variance',
+        'pc1_range': (-0.5, -0.2),
+        'pc2_range': (-0.3, 0.3),
+        'description': 'High elongation cluster',
+        'color': 'blue'
+    }
+}
+
+Results might show:
+- high_strength: Cu enriched +45%, Mg enriched +32% (vs dataset average)
+- high_ductility: Si depleted -28%, Fe depleted -41%
+- Box plots confirm statistically different Tensile_Strength distributions
+- Original vs behavioral confirms these patterns invisible in raw composition
+
+CRITICAL DESIGN PRINCIPLES
+---------------------------
+1. USER DEFINES REGIONS - no automatic clustering to avoid circularity
+2. Regions based on VISUAL INSPECTION of behavioral space plots
+3. Composition analysis uses ALL features (no selection bias)
+4. Label analysis uses ALL labels (complete picture)
+5. Change_% quantifies enrichment/depletion vs dataset average
+6. Original vs behavioral validation prevents false discoveries
+7. Multiple visualization types support different analysis needs
+8. All raw data saved for further statistical testing
+
+STATISTICAL VALIDATION (user responsibility)
+---------------------------------------------
+After region definition, users should validate with:
+- T-tests or ANOVA on label differences between regions
+- Permutation tests on composition differences
+- Multiple testing correction (Bonferroni, FDR)
+- Cross-validation of region definitions
+
+Tool provides exploratory analysis; user must confirm significance.
+
+==============================================================
+INTEGRATION BETWEEN TOOLS
+==============================================================
+
+WORKFLOW:
+1. behavioral_space_explorer.py → Generates behavioral spaces, visualizations
+2. Visual inspection → Identify interesting patterns
+3. Define USER_REGIONS → Specify PC1/PC2 boundaries, colors
+4. behavioral_region_explorer.py → Extract, analyze, validate regions
+
+KEY SYNERGIES:
+- Space explorer creates the .npy file required by region explorer
+- Space explorer's plots guide region selection
+- Region explorer validates space explorer's findings
+- Together provide complete analysis: discovery → validation → interpretation
+
+GITHUB REPOSITORY STRUCTURE
+----------------------------
+repository/
+├── behavioral_space_explorer.py
+├── behavioral_region_explorer.py
+├── shapley_behaviors.py (required dependency)
+├── examples/
+│   ├── aluminium_alloys/
+│   │   ├── al_data.csv
+│   │   ├── run_space_explorer.py (with config variables)
+│   │   └── run_region_explorer.py (with config + USER_REGIONS)
+│   └── mxenes/
+│       ├── mxene_mendeleev.csv
+│       ├── run_space_explorer.py
+│       └── run_region_explorer.py
+├── README.md
+├── LICENSE
+└── requirements.txt
+
+DEPENDENCIES
+------------
+- numpy
+- pandas
+- matplotlib
+- scikit-learn
+- scipy
+- joblib (for parallel processing)
+
+==============================================================
