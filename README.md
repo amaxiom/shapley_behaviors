@@ -1,6 +1,6 @@
 # Shapley Behavioral Analysis Toolkit
 
-**Reveal hidden compositional patterns in data using Shapley value-based behavioral transformations.**
+**Reveal hidden patterns in data using Shapley value-based behavioral transformations.**
 
 This toolkit provides two complementary Python tools for analyzing high-dimensional datasets by transforming raw features into interpretable behavioral spaces that expose clustering patterns invisible in the original data.
 
@@ -261,7 +261,7 @@ If you use this toolkit in your research, please cite:
   author = {Barnard, Amanda S. and Liu, Tommy},
   title = {Shapley Behavioral Analysis Toolkit},
   year = {2024},
-  url = {https://github.com/yourusername/shapley-behaviors}
+  url = {https://github.com/amaxiom/shapley-behaviors}
 }
 ```
 ```bibtex
