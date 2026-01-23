@@ -260,8 +260,9 @@ If you use this toolkit in your research, please cite:
 @software{shapley_behavioral_analysis,
   author = {Barnard, Amanda S. and Liu, Tommy},
   title = {Shapley Behavioral Analysis Toolkit},
-  year = {2024},
+  year = {2026},
   url = {https://github.com/amaxiom/shapley-behaviors}
+  version = {1.0.0}
 }
 ```
 ```bibtex
