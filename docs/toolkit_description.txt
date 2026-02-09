@@ -120,13 +120,13 @@ behavioral_exploration/{DATASET_NAME}_profile_{space}_outlier_{rank}_{sample_id}
 
 TYPICAL USAGE PATTERNS
 -----------------------
-Aluminium Alloys:
+Magnesium Alloys:
   DATASET_NAME = "Al"
-  DATA_FILE = "al_data.csv"
-  ID_COLUMN = "ID"
-  DROP_COLUMNS = ["Processing", "Specific", "General", "Age", "Solution", "Hardened", "None"]
-  LABEL_COLUMNS = ['Elongation', 'Tensile_Strength', 'Yield_Strength']  # Continuous
-  SELECTED_FEATURES = ['Si', 'Fe', 'Mn']  # Common alloying elements
+  DATA_FILE = "mg_data.csv"
+  ID_COLUMN = "Name"
+  DROP_COLUMNS = ['Condition', 'Process-Heat treatment', 'Coded', 'Sum' 'DOI']
+  LABEL_COLUMNS = ['YS(MPa)', 'UTS(MPa)', 'Ductility']  # Continuous
+  SELECTED_FEATURES = ['Al', 'Ni', 'Mn']  # Common alloying elements
 
 MXenes:
   DATASET_NAME = "mxene"
@@ -364,54 +364,6 @@ INTERPRETATION WORKFLOW
 7. Examine original vs behavioral: Confirms regions are meaningful, not artifacts
 8. Use Change_% columns to quantify compositional differences vs dataset average
 
-EXAMPLE USE CASE
-----------------
-Aluminium Alloys - Identifying high-strength regions:
-
-USER_REGIONS = {
-    'high_strength': {
-        'space': 'variance',
-        'pc1_range': (0.3, 0.6),
-        'pc2_range': (-0.2, 0.2),
-        'description': 'High tensile strength cluster',
-        'color': 'red'
-    },
-    'high_ductility': {
-        'space': 'variance',
-        'pc1_range': (-0.5, -0.2),
-        'pc2_range': (-0.3, 0.3),
-        'description': 'High elongation cluster',
-        'color': 'blue'
-    }
-}
-
-Results might show:
-- high_strength: Cu enriched +45%, Mg enriched +32% (vs dataset average)
-- high_ductility: Si depleted -28%, Fe depleted -41%
-- Box plots confirm statistically different Tensile_Strength distributions
-- Original vs behavioral confirms these patterns invisible in raw composition
-
-CRITICAL DESIGN PRINCIPLES
----------------------------
-1. USER DEFINES REGIONS - no automatic clustering to avoid circularity
-2. Regions based on VISUAL INSPECTION of behavioral space plots
-3. Composition analysis uses ALL features (no selection bias)
-4. Label analysis uses ALL labels (complete picture)
-5. Change_% quantifies enrichment/depletion vs dataset average
-6. Original vs behavioral validation prevents false discoveries
-7. Multiple visualization types support different analysis needs
-8. All raw data saved for further statistical testing
-
-STATISTICAL VALIDATION (user responsibility)
----------------------------------------------
-After region definition, users should validate with:
-- T-tests or ANOVA on label differences between regions
-- Permutation tests on composition differences
-- Multiple testing correction (Bonferroni, FDR)
-- Cross-validation of region definitions
-
-Tool provides exploratory analysis; user must confirm significance.
-
 ==============================================================
 INTEGRATION BETWEEN TOOLS
 ==============================================================
@@ -435,10 +387,9 @@ repository/
 ├── behavioral_region_explorer.py
 ├── shapley_behaviors.py (required dependency)
 ├── examples/
-│   ├── aluminium_alloys/
-│   │   ├── al_data.csv
-│   │   ├── run_space_explorer.py (with config variables)
-│   │   └── run_region_explorer.py (with config + USER_REGIONS)
+│   ├── magnesium_alloys/ 
+│   │   ├── run_space_explorer.py 
+│   │   └── run_region_explorer.py
 │   └── mxenes/
 │       ├── mxene_mendeleev.csv
 │       ├── run_space_explorer.py
