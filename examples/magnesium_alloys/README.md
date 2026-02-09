@@ -4,7 +4,7 @@ This example demonstrates behavioral space analysis on a magnesium alloys datase
 
 ## Dataset
 
-**File:** `mg_data.csv` (not included - use your own data)
+**File:** `mg_data.csv` (not included, or use the one from https://github.com/katrina-coder/Magnesium-alloys-database)
 
 **Structure:**
 - **ID column:** Unique identifier for each alloy
