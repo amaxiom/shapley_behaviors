@@ -469,43 +469,6 @@ fig, ax = create_profile_plot(
 - Useful for follow-up after identifying interesting samples
 - Can profile non-outliers too
 
-### Common Patterns in Profile Plots
-
-#### Pattern 1: Single Dominant Feature
-```
-Cu: ████████████████ (very tall bar)
-Mg: ██ (small bar)
-Zn: █ (tiny bar)
-...all others near zero
-```
-**Interpretation:** Sample's behavior driven almost entirely by one feature (Cu). Simple, interpretable pattern.
-
-#### Pattern 2: Balanced Contributions
-```
-Cu: ██████
-Mg: █████
-Zn: ████
-Si: ████
-Fe: ███
-```
-**Interpretation:** Multiple features contribute similarly. Complex, multifactorial behavior.
-
-#### Pattern 3: Opposing Forces
-```
-Cu:  +████████ (tall positive)
-Si:  -████████ (tall negative)
-Mg:  +█████ (positive)
-Fe:  -████ (negative)
-```
-**Interpretation:** Features "fighting" each other. Net behavior is the balance.
-
-#### Pattern 4: Unexpected Importance
-```
-Global order: Cu > Mg > Zn > Si > Fe
-This sample:  Zn (huge) > Cu (medium) > Fe (medium) > Mg (small) > Si (zero)
-```
-**Interpretation:** Sample is unusual because a globally less-important feature (Zn) dominates. This is WHY it's an outlier.
-
 ### Profile Plot Checklist
 
 When analyzing a profile plot, ask:
@@ -722,6 +685,6 @@ After exploratory analysis with this toolkit:
 
 ---
 
-*This guide is part of the Shapley Behavioral Analysis Toolkit*  
+*This guide is part of the Shapley Behavioral Analysis Toolkit. Examples are for demonstration only.*  
 *Authors: Amanda S. Barnard and Tommy Liu*  
 *License: MIT*
