@@ -188,27 +188,6 @@ OUTPUT_DIR = 'output'
 SELECTED_FEATURES = None         # No feature plots
 ```
 
-### Alloys Configuration
-
-```python
-SEED = 42
-N_PERMUTATIONS = 200
-N_JOBS = -1
-
-DATASET_NAME = "Al"
-DATA_FILE = "aluminium_alloys.csv"
-ID_COLUMN = "Alloy_ID"
-DROP_COLUMNS = ["Date", "Researcher", "Notes", "Batch"]
-LABEL_COLUMNS = ['Tensile_Strength', 'Elongation', 'Hardness']
-OUTPUT_DIR = 'behavioral_exploration'
-
-SELECTED_FEATURES = ['Cu', 'Mg', 'Zn']  # Key strengthening elements
-
-# Outlier analysis
-CREATE_OUTLIER_PROFILES = True
-MAX_OUTLIERS_PER_SPACE = 5
-```
-
 ### MXenes Configuration (Mixed Labels)
 
 ```python
@@ -217,7 +196,7 @@ N_PERMUTATIONS = 200
 N_JOBS = -1
 
 DATASET_NAME = "mxene"
-DATA_FILE = "mxenes.csv"
+DATA_FILE = "mxene_mendeleev.csv"
 ID_COLUMN = "Formula"
 DROP_COLUMNS = ["Reference", "DOI", "Year"]
 LABEL_COLUMNS = [
