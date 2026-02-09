@@ -6,7 +6,7 @@ This toolkit provides two complementary Python tools for analyzing high-dimensio
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI version](https://badge.fury.io/py/datatypical.svg)](https://pypi.org/project/datatypical/)
+[![PyPI version](https://badge.fury.io/py/shapley_behaviors.svg)](https://pypi.org/project/shapley_behaviors/)
 
 ## What Does This Do?
 
