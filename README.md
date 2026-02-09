@@ -6,6 +6,7 @@ This toolkit provides two complementary Python tools for analyzing high-dimensio
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI version](https://badge.fury.io/py/datatypical.svg)](https://pypi.org/project/datatypical/)
 
 ## What Does This Do?
 
@@ -36,8 +37,8 @@ Traditional analysis of data often misses important patterns because features in
 ### Setup
 
 ```bash
-git clone https://github.com/amaxiom/shapley-behaviors.git
-cd shapley-behaviors
+git clone https://github.com/amaxiom/shapley_behaviors.git
+cd shapley_behaviors
 pip install -r requirements.txt
 ```
 
@@ -167,7 +168,7 @@ BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Al_behavioral_spaces_all.npy'
 ## Repository Structure
 
 ```
-shapley-behavioral-analysis/
+shapley_behaviors/
 ├── behavioral_space_explorer.py    # Main analysis tool
 ├── behavioral_region_explorer.py   # Region extraction and analysis
 ├── shapley_behaviors.py            # Core Shapley computations
@@ -181,6 +182,7 @@ shapley-behavioral-analysis/
 │   │   └── run_region_explorer.py
 │   └── mxenes/
 │       ├── README.md
+│       ├── mxene_meldeleev.csv
 │       ├── run_space_explorer.py
 │       └── run_region_explorer.py
 └── docs/
@@ -238,16 +240,6 @@ This toolkit ensures you find the first case, not the second.
 - **Any dimensionality:** Works with 5-500+ features
 - **Sparse OK:** Features can be zero for many samples
 
-## Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -257,12 +249,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use this toolkit in your research, please cite:
 
 ```bibtex
-@software{shapley_behavioral_analysis,
+@software{shapley_behaviors,
   author = {Barnard, Amanda S. and Liu, Tommy},
   title = {Shapley Behavioral Analysis Toolkit},
   year = {2026},
-  url = {https://github.com/amaxiom/shapley-behaviors},
-  version = {1.0.0}
+  url = {https://github.com/amaxiom/shapley_behaviors},
+  version = {0.1.1}
 }
 ```
 ```bibtex
@@ -283,7 +275,6 @@ If you use this toolkit in your research, please cite:
 - **Amanda S. Barnard** - *Lead Developer, Methodology* - [amaxiom](https://github.com/amaxiom)
   - Senior Professor and Computational Science Lead, ANU School of Computing
   - Member of the Order of Australia
-  - Prime Minister's Prize for Physical Scientist of the Year
   
 - **Tommy Liu** - *Co-Developer, Implementation* - [uilymmot](https://github.com/uilymmot)
   - Contributed to core algorithm development and validation methodology
@@ -297,8 +288,7 @@ If you use this toolkit in your research, please cite:
 ## Contact
 
 - **Primary Contact:** Amanda S. Barnard
-- **Email:** amanda.s.barnard@anu.edu.au
-- **Issues:** [GitHub Issues](https://github.com/amaxiom/shapley-behaviors/issues)
+- **Issues:** [GitHub Issues](https://github.com/amaxiom/shapley_behaviors/issues)
 
 ## 🔗 Related Resources
 
