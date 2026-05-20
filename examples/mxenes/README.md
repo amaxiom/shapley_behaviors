@@ -4,7 +4,7 @@ This example demonstrates behavioral space analysis on MXenes with mixed continu
 
 ## Dataset
 
-**File:** `mxene_mendeleev.csv` (not included - use your own data)
+**File:** `mxene_mendeleev.csv` 
 
 **Structure:**
 - **ID column:** Formula (e.g., "Ti2C", "Hf2N")
