@@ -14,7 +14,7 @@ This example demonstrates behavioral space analysis on MXenes with mixed continu
   - Capacity (mAh/g)
   - Charge (unitless)
 - **Labels (categorical):**
-  - M: Metal element(s) (e.g., "Ti", "TiTiTiTiHfHfHfHf")
+  - M: Metal element(s) (e.g., "Ti")
   - X: Carbon/Nitrogen (e.g., "C", "N")
   - T: Termination group(s) (e.g., "F", "O", "OH")
   - Z: Intercalated ion(s) (e.g., "Li", "Na", "K", "Mg")
