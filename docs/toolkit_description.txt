@@ -3,9 +3,14 @@ BEHAVIORAL SPACE ANALYSIS TOOLKIT - COMPREHENSIVE DESCRIPTION
 
 OVERVIEW
 --------
-Two complementary Python tools for analyzing compositional datasets using Shapley value-based 
-behavioral transformations. Designed for materials science (alloys, MXenes) but applicable to 
-any high-dimensional compositional data.
+Three complementary Python tools for analyzing compositional datasets using Shapley value-based
+behavioral transformations. Designed for materials science (alloys, MXenes) but applicable to
+any high-dimensional compositional data:
+1. behavioral_space_explorer.py  - generates and validates the behavioral spaces
+2. behavioral_region_explorer.py - detects break-zone boundaries automatically, then
+                                   extracts and analyzes user-defined regions
+3. behavioral_cluster_explorer.py - k-means cluster analysis of a behavioral space
+                                    (exclusive clusters instead of rectangles)
 
 ==============================================================
 TOOL 1: BEHAVIORAL_SPACE_EXPLORER.PY
@@ -61,7 +66,7 @@ PROCESSING WORKFLOW
    - Each produces matrix (samples × features) quantifying each feature's contribution
    - Uses Monte Carlo permutation sampling with N_PERMUTATIONS iterations
    - Parallelized across features with N_JOBS workers
-   - Saves all spaces to {DATASET_NAME}_behavioral_spaces_all.npy
+   - Saves all spaces to {DATASET_NAME}_behavioral_spaces.npy
 
 3. STATISTICAL ANALYSIS (for each space including original)
    - Hopkins statistic: Measures clustering tendency (0=random, 1=highly clustered)
@@ -97,7 +102,7 @@ PROCESSING WORKFLOW
 
 OUTPUT FILES
 ------------
-behavioral_exploration/{DATASET_NAME}_behavioral_spaces_all.npy
+behavioral_exploration/{DATASET_NAME}_behavioral_spaces.npy
   - Dictionary: {'variance': array, 'skewness': array, 'kurtosis': array, 'entropy': array}
 
 behavioral_exploration/{DATASET_NAME}_hopkins_statistics.csv
@@ -120,13 +125,13 @@ behavioral_exploration/{DATASET_NAME}_profile_{space}_outlier_{rank}_{sample_id}
 
 TYPICAL USAGE PATTERNS
 -----------------------
-Magnesium Alloys:
+Aluminium Alloys:
   DATASET_NAME = "Al"
-  DATA_FILE = "mg_data.csv"
-  ID_COLUMN = "Name"
-  DROP_COLUMNS = ['Condition', 'Process-Heat treatment', 'Coded', 'Sum' 'DOI']
-  LABEL_COLUMNS = ['YS(MPa)', 'UTS(MPa)', 'Ductility']  # Continuous
-  SELECTED_FEATURES = ['Al', 'Ni', 'Mn']  # Common alloying elements
+  DATA_FILE = "al_data.csv"
+  ID_COLUMN = "ID"
+  DROP_COLUMNS = ["Processing", "Specific", "General", "Age", "Solution", "Hardened", "None"]
+  LABEL_COLUMNS = ['Elongation', 'Tensile_Strength', 'Yield_Strength']  # Continuous
+  SELECTED_FEATURES = ['Si', 'Fe', 'Mn']  # Common alloying elements
 
 MXenes:
   DATASET_NAME = "mxene"
@@ -160,9 +165,17 @@ TOOL 2: BEHAVIORAL_REGION_EXPLORER.PY
 
 PURPOSE
 -------
-Enables user-defined region selection in behavioral spaces, extracts samples, analyzes 
-their compositional and label characteristics, and compares across regions. Validates 
+Enables user-defined region selection in behavioral spaces, extracts samples, analyzes
+their compositional and label characteristics, and compares across regions. Validates
 that behavioral transformations reveal meaningful structure absent in original space.
+
+Includes integrated automatic break detection: run with USER_REGIONS = None and the
+tool reports statistically significant break zones (merged nearest-neighbor gaps with
+z-score above BREAK_Z_THRESHOLD, leaving at least MIN_REGION_FRACTION of samples on
+each side) and satellite candidate gaps (strong gaps bounding small coherent groups)
+for each requested space, saves diagnostic figures, and exposes the boundaries in the
+notebook namespace so USER_REGIONS can be defined from detected gap midpoints rather
+than by eye.
 
 INPUT REQUIREMENTS
 ------------------
@@ -364,20 +377,101 @@ INTERPRETATION WORKFLOW
 7. Examine original vs behavioral: Confirms regions are meaningful, not artifacts
 8. Use Change_% columns to quantify compositional differences vs dataset average
 
+EXAMPLE USE CASE
+----------------
+Aluminium Alloys - Identifying high-strength regions:
+
+USER_REGIONS = {
+    'high_strength': {
+        'space': 'variance',
+        'pc1_range': (0.3, 0.6),
+        'pc2_range': (-0.2, 0.2),
+        'description': 'High tensile strength cluster',
+        'color': 'red'
+    },
+    'high_ductility': {
+        'space': 'variance',
+        'pc1_range': (-0.5, -0.2),
+        'pc2_range': (-0.3, 0.3),
+        'description': 'High elongation cluster',
+        'color': 'blue'
+    }
+}
+
+Results might show:
+- high_strength: Cu enriched +45%, Mg enriched +32% (vs dataset average)
+- high_ductility: Si depleted -28%, Fe depleted -41%
+- Box plots confirm statistically different Tensile_Strength distributions
+- Original vs behavioral confirms these patterns invisible in raw composition
+
+CRITICAL DESIGN PRINCIPLES
+---------------------------
+1. USER DEFINES REGIONS - no automatic clustering to avoid circularity
+2. Regions based on VISUAL INSPECTION of behavioral space plots
+3. Composition analysis uses ALL features (no selection bias)
+4. Label analysis uses ALL labels (complete picture)
+5. Change_% quantifies enrichment/depletion vs dataset average
+6. Original vs behavioral validation prevents false discoveries
+7. Multiple visualization types support different analysis needs
+8. All raw data saved for further statistical testing
+
+STATISTICAL VALIDATION (user responsibility)
+---------------------------------------------
+After region definition, users should validate with:
+- T-tests or ANOVA on label differences between regions
+- Permutation tests on composition differences
+- Multiple testing correction (Bonferroni, FDR)
+- Cross-validation of region definitions
+
+Tool provides exploratory analysis; user must confirm significance.
+
+==============================================================
+TOOL 3: BEHAVIORAL_CLUSTER_EXPLORER.PY
+==============================================================
+
+PURPOSE
+-------
+K-means cluster analysis of the 2D PCA projection of a behavioral space, as an
+alternative (or cross-check) to rectangular regions. Every sample belongs to exactly
+one cluster, so groups are mutually exclusive by construction. Clusters are lettered
+A, B, C, ... left-to-right by PC1 centroid.
+
+INPUT REQUIREMENTS
+------------------
+Same data variables as the region explorer (DATASET_NAME, DATA_FILE, ID_COLUMN,
+DROP_COLUMNS, LABEL_COLUMNS, OUTPUT_DIR, BEHAVIORAL_SPACES_FILE), plus optional:
+- SPACE: behavioral space to cluster (default 'skewness')
+- K: number of clusters (default 6)
+- SEED: reproducibility (default 42)
+- DATASET_LABEL, COLORS: naming and palette
+
+OUTPUT FILES
+------------
+- {name}_cluster_{L}_samples.csv / _full_data.csv per cluster
+- {name}_cluster_property_summary.csv (mean/std/min/median/max per label)
+- {name}_cluster_composition_summary.csv (mean feature values + OVERALL column)
+- {name}_cluster_pc_space.png, {name}_cluster_property_boxplots.png
+
 ==============================================================
 INTEGRATION BETWEEN TOOLS
 ==============================================================
 
 WORKFLOW:
 1. behavioral_space_explorer.py → Generates behavioral spaces, visualizations
-2. Visual inspection → Identify interesting patterns
-3. Define USER_REGIONS → Specify PC1/PC2 boundaries, colors
+2. behavioral_region_explorer.py with USER_REGIONS = None → Automatic break
+   detection reports zone and satellite boundaries per space
+3. Define USER_REGIONS → From detected gap midpoints (plus visual inspection)
 4. behavioral_region_explorer.py → Extract, analyze, validate regions
+5. (Optional) behavioral_cluster_explorer.py → Exclusive k-means clusters as an
+   independent cross-check of the region definitions
 
 KEY SYNERGIES:
-- Space explorer creates the .npy file required by region explorer
-- Space explorer's plots guide region selection
+- Space explorer creates the .npy file required by the other tools
+- Break detection turns region selection from visual judgement into a
+  reproducible statistical criterion
 - Region explorer validates space explorer's findings
+- Cluster explorer provides an assignment-based counterpart to the
+  boundary-based regions
 - Together provide complete analysis: discovery → validation → interpretation
 
 GITHUB REPOSITORY STRUCTURE
@@ -385,11 +479,14 @@ GITHUB REPOSITORY STRUCTURE
 repository/
 ├── behavioral_space_explorer.py
 ├── behavioral_region_explorer.py
+├── behavioral_cluster_explorer.py
 ├── shapley_behaviors.py (required dependency)
 ├── examples/
-│   ├── magnesium_alloys/ 
-│   │   ├── run_space_explorer.py 
-│   │   └── run_region_explorer.py
+│   ├── gmm_region_finder.ipynb (GMM-based boundary detection, alternative)
+│   ├── GMM_REGION_FINDER.md
+│   ├── magnesium_alloys/
+│   │   ├── run_space_explorer.py (with config variables)
+│   │   └── run_region_explorer.py (with config + USER_REGIONS)
 │   └── mxenes/
 │       ├── mxene_mendeleev.csv
 │       ├── run_space_explorer.py

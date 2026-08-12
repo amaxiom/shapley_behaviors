@@ -200,6 +200,42 @@ If regions cluster in **both** original and behavioral spaces, you've just found
 
 ---
 
+## Break Zones and Satellite Candidates
+
+The region explorer's automatic break detection reports two kinds of boundary.
+
+### Break zones
+
+A break zone is a sparse band along PC1 or PC2: one or more statistically significant nearest-neighbor gaps (z-score above `BREAK_Z_THRESHOLD`), merged when only a few straggler samples separate them. The dense blocks on either side are natural candidate regions.
+
+```
+PC1 break zones:
+  Zone 1: [+0.3100, +0.3773]  mid = +0.3436  below/inside/above = 246/5/61  max z = 3.0
+```
+
+- **below/inside/above**: sample counts on each side of and within the zone
+- Use the **midpoint** as a rectangle bound (no samples sit inside a gap, so the exact position within the gap is arbitrary but rounding-safe)
+- Samples **inside** a zone are stragglers; assign them to the adjacent dominant block (bound at the outermost significant gap) or leave them unassigned
+
+### Satellite candidates
+
+Strong gaps (z >= 3) that would isolate fewer samples than `MIN_REGION_FRACTION` allows, but still bound a coherent group (>= 1% of samples), are reported separately:
+
+```
+Satellite candidate gaps (strong, below MIN_REGION_FRACTION):
+  gap at -0.4449: 17/899 samples per side, z = 23.0
+```
+
+These mark small clusters split off from a dominant central population. In satellite-dominated projections (one dense core plus small outlying groups), every meaningful region boundary may come from this list rather than from interior zones. Very large z-scores (10+) indicate unambiguous separation.
+
+### What To Look For
+
+- **Interior zones present** → the space genuinely partitions into blocks (define grid-style regions)
+- **Only satellite candidates** → one core population plus small distinct families (define satellite regions plus a central region)
+- **Neither** → the space is a single continuous cloud; consider the cluster explorer or a different behavioral space
+
+---
+
 ## Region Analysis Tables
 
 ### Composition Tables
@@ -469,6 +505,43 @@ fig, ax = create_profile_plot(
 - Useful for follow-up after identifying interesting samples
 - Can profile non-outliers too
 
+### Common Patterns in Profile Plots
+
+#### Pattern 1: Single Dominant Feature
+```
+Cu: ████████████████ (very tall bar)
+Mg: ██ (small bar)
+Zn: █ (tiny bar)
+...all others near zero
+```
+**Interpretation:** Sample's behavior driven almost entirely by one feature (Cu). Simple, interpretable pattern.
+
+#### Pattern 2: Balanced Contributions
+```
+Cu: ██████
+Mg: █████
+Zn: ████
+Si: ████
+Fe: ███
+```
+**Interpretation:** Multiple features contribute similarly. Complex, multifactorial behavior.
+
+#### Pattern 3: Opposing Forces
+```
+Cu:  +████████ (tall positive)
+Si:  -████████ (tall negative)
+Mg:  +█████ (positive)
+Fe:  -████ (negative)
+```
+**Interpretation:** Features "fighting" each other. Net behavior is the balance.
+
+#### Pattern 4: Unexpected Importance
+```
+Global order: Cu > Mg > Zn > Si > Fe
+This sample:  Zn (huge) > Cu (medium) > Fe (medium) > Mg (small) > Si (zero)
+```
+**Interpretation:** Sample is unusual because a globally less-important feature (Zn) dominates. This is WHY it's an outlier.
+
 ### Profile Plot Checklist
 
 When analyzing a profile plot, ask:
@@ -685,6 +758,6 @@ After exploratory analysis with this toolkit:
 
 ---
 
-*This guide is part of the Shapley Behavioral Analysis Toolkit. Examples are for demonstration only.*  
+*This guide is part of the Shapley Behavioral Analysis Toolkit*  
 *Authors: Amanda S. Barnard and Tommy Liu*  
 *License: MIT*

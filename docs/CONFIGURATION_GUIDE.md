@@ -131,10 +131,10 @@ MAX_OUTLIERS_PER_SPACE = 10  # Comprehensive analysis
 
 ### BEHAVIORAL_SPACES_FILE (region explorer only)
 **Type:** String (path)  
-**Example:** `BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Al_behavioral_spaces_all.npy'`  
+**Example:** `BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Al_behavioral_spaces.npy'`  
 **Purpose:** Path to .npy file created by behavioral_space_explorer.py
 - Must run space explorer first to create this file
-- Path typically: `{OUTPUT_DIR}/{DATASET_NAME}_behavioral_spaces_all.npy`
+- Path typically: `{OUTPUT_DIR}/{DATASET_NAME}_behavioral_spaces.npy`
 
 ### PLOT_MODE (region explorer only)
 **Type:** String  
@@ -143,6 +143,44 @@ MAX_OUTLIERS_PER_SPACE = 10  # Comprehensive analysis
 **Purpose:** How to visualize multiple regions.
 - **'combined':** All regions for each space on one plot (recommended)
 - **'separate':** Individual plot for each region (many files)
+
+### Break detection (region explorer only)
+
+The region explorer detects statistically significant break zones along
+PC1 and PC2 before any regions are analysed. Run it with
+`USER_REGIONS = None` (or undefined) for a detection-only pass; the
+detected boundaries are printed, diagnostic figures are saved, and
+`break_zones` (plus `pc1_zones` / `pc2_zones` / `pc1_break` / `pc2_break`
+when a single space is analysed) are left in the notebook namespace.
+
+```python
+BREAK_SPACES = ['variance']     # spaces to analyse; default: all in the file
+BREAK_Z_THRESHOLD = 2.5         # gap significance (z-score vs all gaps)
+MIN_REGION_FRACTION = 0.05      # a boundary must leave this fraction per side
+MAX_STRAGGLER_FRACTION = 0.02   # merge gaps separated by <= this fraction
+REPORT_BREAKS = True            # False suppresses the report in analysis runs
+```
+
+Strong gaps (z >= 3) that fail MIN_REGION_FRACTION but still separate a
+coherent group (>= 1% of samples) are reported as satellite candidates:
+use them to bound small split-off clusters. Gap midpoints make robust
+rectangle bounds because the gap interior contains no samples.
+
+### Cluster explorer variables (behavioral_cluster_explorer.py)
+
+The k-means companion uses the same data variables as the region
+explorer plus:
+
+```python
+SPACE = 'variance'      # behavioral space to cluster (default 'skewness')
+K = 6                   # number of clusters (default 6)
+SEED = 42               # reproducibility (default 42)
+DATASET_LABEL = 'ABC'   # prefix for cluster names (default DATASET_NAME)
+COLORS = [...]          # optional; 10-colour default palette cycles
+```
+
+Clusters are exclusive (every sample belongs to exactly one) and are
+lettered A, B, C, ... left-to-right by PC1 centroid.
 
 ### USER_REGIONS (region explorer only)
 **Type:** Dictionary  
@@ -188,6 +226,27 @@ OUTPUT_DIR = 'output'
 SELECTED_FEATURES = None         # No feature plots
 ```
 
+### Alloys Configuration
+
+```python
+SEED = 42
+N_PERMUTATIONS = 200
+N_JOBS = -1
+
+DATASET_NAME = "Al"
+DATA_FILE = "aluminium_alloys.csv"
+ID_COLUMN = "Alloy_ID"
+DROP_COLUMNS = ["Date", "Researcher", "Notes", "Batch"]
+LABEL_COLUMNS = ['Tensile_Strength', 'Elongation', 'Hardness']
+OUTPUT_DIR = 'behavioral_exploration'
+
+SELECTED_FEATURES = ['Cu', 'Mg', 'Zn']  # Key strengthening elements
+
+# Outlier analysis
+CREATE_OUTLIER_PROFILES = True
+MAX_OUTLIERS_PER_SPACE = 5
+```
+
 ### MXenes Configuration (Mixed Labels)
 
 ```python
@@ -196,7 +255,7 @@ N_PERMUTATIONS = 200
 N_JOBS = -1
 
 DATASET_NAME = "mxene"
-DATA_FILE = "mxene_mendeleev.csv"
+DATA_FILE = "mxenes.csv"
 ID_COLUMN = "Formula"
 DROP_COLUMNS = ["Reference", "DOI", "Year"]
 LABEL_COLUMNS = [
@@ -246,11 +305,14 @@ LABEL_COLUMNS = ['Voltage', 'Capcity']  # Typo: "Capcity"
 ```
 **Fix:** Check column names in your CSV (case-sensitive)
 
-### ❌ Wrong: ID_COLUMN not unique
+### ⚠ Caution: ID_COLUMN not unique
 ```python
 ID_COLUMN = "Type"  # Multiple samples have same type
 ```
-**Fix:** Use a truly unique identifier column
+**Prefer a truly unique identifier column.** Since 0.1.3 all region and
+cluster statistics use positional indexing, so duplicate IDs no longer
+corrupt any numbers, but exported sample lists will contain repeated
+names that cannot be told apart downstream.
 
 ### ❌ Wrong: Too many SELECTED_FEATURES
 ```python
