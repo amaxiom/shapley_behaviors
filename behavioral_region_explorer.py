@@ -4,16 +4,38 @@ Flexible Multi-Region Analysis Tool for Behavioral Spaces
 Users define their own regions, visualize them together or separately,
 and get comprehensive composition and label statistics in tables.
 
-USAGE IN JUPYTER:
------------------
-# First, define your configuration variables:
+Region boundaries do not need to be guessed: the tool has integrated
+automatic break detection. Statistically significant nearest-neighbor
+gaps along PC1 and PC2 are merged into break zones, and strong gaps
+that isolate small coherent groups are reported as satellite
+candidates. The dense blocks between these boundaries are the natural
+candidate regions.
+
+TWO-PASS USAGE IN JUPYTER:
+--------------------------
+# Pass 1 - break detection only. Define the data configuration and run
+# without USER_REGIONS (or with USER_REGIONS = None):
 DATASET_NAME = "ABC"  # Used in file naming
+OUTPUT_DIR = 'behavioral_exploration'
+BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/ABC_behavioral_spaces.npy'
+BREAK_SPACES = ['variance', 'skewness']   # default: all spaces in the file
+BREAK_Z_THRESHOLD = 2.5         # significance of a gap (z-score)
+MIN_REGION_FRACTION = 0.05      # min fraction of samples on each side
+MAX_STRAGGLER_FRACTION = 0.02   # merge gaps separated by <= this fraction
+
+USER_REGIONS = None
+%run -i behavioral_region_explorer.py
+# -> prints break zones / satellite candidates per space, saves
+#    diagnostic figures, exposes break_zones (dict) in the namespace,
+#    plus pc1_zones / pc2_zones / pc1_break / pc2_break aliases when a
+#    single space was analysed.
+
+# Pass 2 - full region analysis. Define the regions (typically from the
+# gap midpoints reported in pass 1) and run again:
 DATA_FILE = "Your_data.csv"
 ID_COLUMN = "ID"  # or any unique identifier
 DROP_COLUMNS = ["A", "B", "C"] # as many as you define
 LABEL_COLUMNS = ['a', 'b', 'c']
-OUTPUT_DIR = 'behavioral_exploration'
-BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/ABC_behavioral_spaces.npy'
 PLOT_MODE = 'combined'
 
 USER_REGIONS = {
@@ -25,9 +47,9 @@ USER_REGIONS = {
         'color': 'red'
     }
 }
-
-# Then run:
 %run -i behavioral_region_explorer.py
+# In this pass the break report is repeated for the spaces referenced
+# by USER_REGIONS (set REPORT_BREAKS = False to suppress it).
 """
 
 import os
@@ -41,10 +63,16 @@ from sklearn.preprocessing import MinMaxScaler
 # =====================================================================
 # CHECK REQUIRED VARIABLES
 # =====================================================================
+# Break detection needs only the behavioral spaces; the full region
+# analysis additionally needs the raw data table and USER_REGIONS.
 
-required_vars = ['DATASET_NAME', 'DATA_FILE', 'ID_COLUMN', 'DROP_COLUMNS', 
-                'LABEL_COLUMNS', 'BEHAVIORAL_SPACES_FILE', 'OUTPUT_DIR', 
-                'PLOT_MODE', 'USER_REGIONS']
+_HAS_REGIONS = bool(globals().get('USER_REGIONS'))
+
+if _HAS_REGIONS:
+    required_vars = ['DATASET_NAME', 'DATA_FILE', 'ID_COLUMN', 'DROP_COLUMNS',
+                     'LABEL_COLUMNS', 'USER_REGIONS']
+else:
+    required_vars = ['DATASET_NAME']
 
 missing_vars = [var for var in required_vars if var not in globals()]
 
@@ -58,10 +86,255 @@ if missing_vars:
     print("="*70 + "\n")
     raise SystemExit("Configuration variables not defined")
 
+# Defaults for optional configuration
+if 'OUTPUT_DIR' not in globals():
+    OUTPUT_DIR = 'behavioral_exploration'
+if 'BEHAVIORAL_SPACES_FILE' not in globals():
+    BEHAVIORAL_SPACES_FILE = os.path.join(
+        OUTPUT_DIR, f'{DATASET_NAME}_behavioral_spaces.npy')
+if 'PLOT_MODE' not in globals():
+    PLOT_MODE = 'combined'
+
+# Break-detection configuration (see Section BREAK DETECTION below)
+BREAK_Z_THRESHOLD = globals().get('BREAK_Z_THRESHOLD', 2.5)
+MIN_REGION_FRACTION = globals().get('MIN_REGION_FRACTION', 0.05)
+MAX_STRAGGLER_FRACTION = globals().get('MAX_STRAGGLER_FRACTION', 0.02)
+REPORT_BREAKS = globals().get('REPORT_BREAKS', True)
+if 'BREAK_SPACES' in globals():
+    pass
+elif 'BREAK_SPACE' in globals():          # legacy singular form
+    BREAK_SPACES = [BREAK_SPACE]
+else:
+    BREAK_SPACES = None                   # None -> all spaces in the file
+
 
 # =====================================================================
 # MAIN ANALYSIS FUNCTIONS
 # =====================================================================
+
+def is_categorical(labels):
+    """Determine if labels are categorical or continuous."""
+    # Convert to pandas Series if it's a numpy array for easier handling
+    if isinstance(labels, np.ndarray):
+        labels = pd.Series(labels)
+
+    # Remove NaN for type checking
+    valid_labels = labels[~pd.isna(labels)]
+
+    if len(valid_labels) == 0:
+        return False
+
+    # Check if dtype is object or string
+    if pd.api.types.is_object_dtype(valid_labels) or pd.api.types.is_string_dtype(valid_labels):
+        return True
+
+    # For numeric data, check uniqueness
+    n_unique = len(np.unique(valid_labels))
+    if n_unique <= 20 and n_unique < len(valid_labels) * 0.05:  # Less than 5% unique
+        return True
+
+    return False
+
+
+# =====================================================================
+# BREAK DETECTION
+# =====================================================================
+# Automatic detection of statistically significant sparse bands ("break
+# zones") along PC1 and PC2 of a behavioral space. The dense blocks
+# between zones are natural candidate regions; strong gaps that isolate
+# small coherent groups are reported as satellite candidates. Mirrors
+# shapley_behaviors.core.find_break_zones.
+
+def find_break_zones(values, z_threshold, min_region_fraction,
+                     max_straggler_fraction):
+    """Find sparse break zones along one axis.
+
+    Returns (zones, rejected) where each zone is a dict:
+        lower_edge : last dense point below the zone
+        upper_edge : first dense point above the zone
+        midpoint   : centre of the zone
+        n_below / n_inside / n_above : sample counts
+        max_z      : largest gap z-score inside the zone
+    """
+    v = np.sort(np.asarray(values, dtype=float))
+    n = len(v)
+    if n < 3:
+        return [], []
+    gaps = np.diff(v)
+    gap_std = gaps.std()
+    if gap_std == 0:
+        return [], []
+    z = (gaps - gaps.mean()) / gap_std
+
+    sig = np.where(z > z_threshold)[0]
+    min_side = int(np.ceil(min_region_fraction * n))
+    max_stragglers = max(1, int(round(max_straggler_fraction * n)))
+    min_satellite = max(2, int(np.ceil(0.01 * n)))
+
+    # Reject edge gaps first, so they cannot corrupt a genuine zone
+    # during merging (e.g. a small cluster's own flank gap). Strong
+    # sub-threshold gaps that still isolate a coherent group are
+    # flagged as satellite candidates.
+    rejected = []
+    kept = []
+    for i in sig:
+        n_below, n_above = i + 1, n - i - 1
+        if n_below < min_side or n_above < min_side:
+            rejected.append({
+                'position': 0.5 * (v[i] + v[i + 1]),
+                'n_below': n_below, 'n_above': n_above, 'z': z[i],
+                'satellite': (min(n_below, n_above) >= min_satellite
+                              and z[i] >= 3.0),
+            })
+        else:
+            kept.append(i)
+
+    # Merge surviving gaps separated by few straggler points into zones
+    zones = []
+    if kept:
+        groups = [[kept[0]]]
+        for i in kept[1:]:
+            if i - groups[-1][-1] <= max_stragglers:
+                groups[-1].append(i)
+            else:
+                groups.append([i])
+
+        for g in groups:
+            lo, hi = g[0], g[-1] + 1
+            zones.append({
+                'lower_edge': v[lo],
+                'upper_edge': v[hi],
+                'midpoint': 0.5 * (v[lo] + v[hi]),
+                'n_below': lo + 1,
+                'n_inside': hi - lo - 1,
+                'n_above': n - hi,
+                'max_z': z[g].max(),
+            })
+
+    return zones, rejected
+
+
+def report_break_zones(axis_name, zones, rejected):
+    """Print a summary table for one axis."""
+    print(f"\n{axis_name} break zones:")
+    if not zones:
+        print("  (none found - consider lowering BREAK_Z_THRESHOLD)")
+    for k, zone in enumerate(zones, 1):
+        print(f"  Zone {k}: [{zone['lower_edge']:+.4f}, "
+              f"{zone['upper_edge']:+.4f}]  mid = {zone['midpoint']:+.4f}  "
+              f"below/inside/above = {zone['n_below']}/{zone['n_inside']}/"
+              f"{zone['n_above']}  max z = {zone['max_z']:.1f}")
+    satellites = [r for r in rejected if r['satellite']]
+    if satellites:
+        print(f"  Satellite candidate gaps (strong, below MIN_REGION_FRACTION):")
+        for r in satellites:
+            print(f"    gap at {r['position']:+.4f}: "
+                  f"{r['n_below']}/{r['n_above']} samples per side, "
+                  f"z = {r['z']:.1f}")
+    for r in rejected:
+        if not r['satellite']:
+            print(f"  (rejected edge gap at {r['position']:+.4f}: "
+                  f"{r['n_below']}/{r['n_above']} samples per side, "
+                  f"z = {r['z']:.1f})")
+
+
+def save_break_diagnostics(space_name, pc1_vals, pc2_vals, zones_by_axis):
+    """SI-quality diagnostic plots: orderings with zones + gap spectra."""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+    for row, (axis_name, values) in enumerate(
+            [("PC1", pc1_vals), ("PC2", pc2_vals)]):
+        v_sorted = np.sort(values)
+        v_gaps = np.diff(v_sorted)
+        threshold_line = v_gaps.mean() + BREAK_Z_THRESHOLD * v_gaps.std()
+
+        ax = axes[row, 0]
+        ax.scatter(v_sorted, np.zeros_like(v_sorted), s=6, alpha=0.5)
+        for zone in zones_by_axis[axis_name.lower()]:
+            ax.axvspan(zone['lower_edge'], zone['upper_edge'],
+                       color='red', alpha=0.2)
+            ax.axvline(zone['midpoint'], color='red', linestyle='--', lw=1.5)
+        ax.set_title(f"{axis_name} Ordering with Detected Break Zones")
+        ax.set_xlabel(axis_name)
+        ax.set_yticks([])
+        ax.grid(alpha=0.3)
+
+        ax = axes[row, 1]
+        ax.plot(v_gaps, color="black", lw=1)
+        ax.axhline(threshold_line, color="red", linestyle="--",
+                   label=f"z = {BREAK_Z_THRESHOLD} threshold")
+        ax.set_title(f"{axis_name} Nearest-Neighbor Gaps")
+        ax.set_xlabel("Sorted index")
+        ax.set_ylabel(f"$\\Delta$ {axis_name}")
+        ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1.0))
+        ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+    diag_path = os.path.join(
+        OUTPUT_DIR, f'{DATASET_NAME}_break_diagnostics_{space_name}.png')
+    plt.savefig(diag_path, dpi=300, bbox_inches='tight')
+    plt.show()
+    print(f"\n[OK] Saved: {diag_path}")
+
+
+def run_break_detection(save_diagnostics):
+    """Report break zones for the requested spaces.
+
+    In break-only mode (no USER_REGIONS) the spaces come from
+    BREAK_SPACES (default: every space in the file) and diagnostic
+    figures are saved. In analysis mode the spaces referenced by
+    USER_REGIONS are reported, without re-saving diagnostics.
+    Returns {space: {'pc1': zones, 'pc2': zones, 'projection': X_pca}}.
+    """
+    spaces_dict = np.load(BEHAVIORAL_SPACES_FILE, allow_pickle=True).item()
+    if _HAS_REGIONS:
+        spaces = sorted({cfg['space'] for cfg in USER_REGIONS.values()})
+    elif BREAK_SPACES is not None:
+        spaces = list(BREAK_SPACES)
+    else:
+        spaces = list(spaces_dict.keys())
+
+    results = {}
+    for space_name in spaces:
+        if space_name not in spaces_dict:
+            raise KeyError(f"Space '{space_name}' not in "
+                           f"{BEHAVIORAL_SPACES_FILE} "
+                           f"(available: {list(spaces_dict)})")
+        X = spaces_dict[space_name]
+        X_scaled = MinMaxScaler().fit_transform(X)
+        pca = PCA(n_components=2, random_state=42)
+        X_pca = pca.fit_transform(X_scaled)
+        pc1_vals, pc2_vals = X_pca[:, 0], X_pca[:, 1]
+
+        print("\n" + "="*70)
+        print(f"AUTOMATIC BREAK DETECTION: {DATASET_NAME.upper()} "
+              f"({space_name.upper()} SPACE)")
+        print("="*70)
+        print(f"Samples: {len(pc1_vals)}")
+        print(f"Explained variance: "
+              f"PC1 {pca.explained_variance_ratio_[0]*100:.1f}%, "
+              f"PC2 {pca.explained_variance_ratio_[1]*100:.1f}%")
+        print(f"PC1 range: [{pc1_vals.min():+.4f}, {pc1_vals.max():+.4f}]")
+        print(f"PC2 range: [{pc2_vals.min():+.4f}, {pc2_vals.max():+.4f}]")
+        print(f"Parameters: z threshold = {BREAK_Z_THRESHOLD}, "
+              f"min region fraction = {MIN_REGION_FRACTION}, "
+              f"max straggler fraction = {MAX_STRAGGLER_FRACTION}")
+
+        z1, r1 = find_break_zones(pc1_vals, BREAK_Z_THRESHOLD,
+                                  MIN_REGION_FRACTION, MAX_STRAGGLER_FRACTION)
+        z2, r2 = find_break_zones(pc2_vals, BREAK_Z_THRESHOLD,
+                                  MIN_REGION_FRACTION, MAX_STRAGGLER_FRACTION)
+        report_break_zones("PC1", z1, r1)
+        report_break_zones("PC2", z2, r2)
+        print(f"\nResulting grid: {len(z1) + 1} PC1 blocks x "
+              f"{len(z2) + 1} PC2 blocks")
+
+        results[space_name] = {'pc1': z1, 'pc2': z2, 'projection': X_pca}
+        if save_diagnostics:
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            save_break_diagnostics(space_name, pc1_vals, pc2_vals,
+                                   {'pc1': z1, 'pc2': z2})
+    return results
+
 
 def load_data_and_spaces():
     """Load dataset and behavioral spaces."""
@@ -255,8 +528,8 @@ def visualize_regions_separate(behavioral_spaces, df, all_regions):
 
 def analyze_region_composition(df, region_samples, feature_columns, region_name):
     """Analyze composition statistics for a region - ALL ELEMENTS IN TABLE."""
-    sample_ids = region_samples['Sample_ID'].values
-    df_region = df.loc[sample_ids]
+    # Positional indexing: ID labels may repeat (e.g. duplicate alloy names)
+    df_region = df.iloc[region_samples['Array_Index'].values]
     
     # Composition data
     composition = df_region[feature_columns]
@@ -330,8 +603,8 @@ def analyze_region_composition(df, region_samples, feature_columns, region_name)
 
 def analyze_region_labels(df, region_samples, label_columns, region_name):
     """Analyze label statistics for a region - ALL LABELS IN TABLE."""
-    sample_ids = region_samples['Sample_ID'].values
-    df_region = df.loc[sample_ids]
+    # Positional indexing: ID labels may repeat (e.g. duplicate alloy names)
+    df_region = df.iloc[region_samples['Array_Index'].values]
     
     # Label data
     labels = df_region[label_columns]
@@ -508,8 +781,7 @@ def create_comparison_summary(all_regions, df, label_columns):
     
     for region_name, region_data in all_regions.items():
         samples = region_data['samples']
-        sample_ids = samples['Sample_ID'].values
-        df_region = df.loc[sample_ids]
+        df_region = df.iloc[samples['Array_Index'].values]
         
         row = {
             'Region': region_name,
@@ -597,8 +869,7 @@ def create_composition_comparison(all_regions, df, feature_columns):
         
         for region_name, region_data in all_regions.items():
             samples = region_data['samples']
-            sample_ids = samples['Sample_ID'].values
-            df_region = df.loc[sample_ids]
+            df_region = df.iloc[samples['Array_Index'].values]
             
             if elem in df_region.columns:
                 row[f'{region_name}_mean'] = df_region[elem].mean()
@@ -661,8 +932,7 @@ def create_label_boxplots(all_regions, df, label_columns):
         
         for region_name in region_names:
             samples = all_regions[region_name]['samples']
-            sample_ids = samples['Sample_ID'].values
-            df_region = df.loc[sample_ids]
+            df_region = df.iloc[samples['Array_Index'].values]
             
             if label in df_region.columns:
                 label_data = df_region[label].dropna()
@@ -1088,8 +1358,7 @@ def main():
         )
         
         # Save full data
-        sample_ids = samples['Sample_ID'].values
-        df_full = df.loc[sample_ids]
+        df_full = df.iloc[samples['Array_Index'].values]
         filename = f'{DATASET_NAME}_region_{region_name}_full_data.csv'
         filepath = os.path.join(OUTPUT_DIR, filename)
         df_full.to_csv(filepath)
@@ -1141,11 +1410,32 @@ def main():
 
 
 # =====================================================================
-# RUN MAIN
+# RUN
 # =====================================================================
+# Pass 1 (no USER_REGIONS): break detection only, with diagnostics.
+# Pass 2 (USER_REGIONS defined): break report for the referenced
+# spaces, then the full region analysis.
 
-if __name__ == "__main__":
+if REPORT_BREAKS:
+    break_zones = run_break_detection(save_diagnostics=not _HAS_REGIONS)
+
+    # Convenience aliases when a single space was analysed
+    if len(break_zones) == 1:
+        _only = next(iter(break_zones.values()))
+        pc1_zones, pc2_zones = _only['pc1'], _only['pc2']
+        pc1_break = _only['projection'][:, 0]
+        pc2_break = _only['projection'][:, 1]
+
+if _HAS_REGIONS:
     main()
 else:
-    # When run with %run -i, execute main directly
-    main()
+    print("\n" + "="*70)
+    print("BREAK DETECTION COMPLETE (no USER_REGIONS defined)")
+    print("="*70)
+    print("Define USER_REGIONS from the zone and satellite boundaries")
+    print("reported above (gap midpoints make robust rectangle bounds),")
+    print("then run this script again for the full region analysis.")
+    print("Results available in the namespace: break_zones"
+          + (", pc1_zones, pc2_zones, pc1_break, pc2_break"
+             if REPORT_BREAKS and len(break_zones) == 1 else ""))
+    print("="*70)

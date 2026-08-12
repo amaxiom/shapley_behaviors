@@ -979,7 +979,7 @@ def main():
     print("ANALYSIS COMPLETE")
     print("="*70)
     print(f"\nAll outputs saved to: {OUTPUT_DIR}/")
-    print(f"  - Behavioral spaces: {DATASET_NAME}_behavioral_spaces_all.npy")
+    print(f"  - Behavioral spaces: {DATASET_NAME}_behavioral_spaces.npy")
     print(f"  - Statistics: {DATASET_NAME}_hopkins_statistics.csv")
     print(f"  - Statistics: {DATASET_NAME}_clustering_statistics.csv")
     print(f"  - Outliers: {len(outliers_data)} CSV files")

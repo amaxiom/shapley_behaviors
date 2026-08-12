@@ -155,9 +155,16 @@ class ShapleyBehaviors:
             perm_reverse = perm[::-1]
             self._update_shapley_values(X_col, perm_reverse, value_func, shapley_values)
         
-        # Average over all permutations
-        shapley_values /= n_perm
-        
+        # Average over the permutations actually run. Antithetic sampling
+        # evaluates 2*(n_perm//2) permutations, so normalising by n_perm
+        # would silently scale every value by (n_perm-1)/n_perm when
+        # n_perm is odd.
+        n_run = 2 * n_pairs
+        if n_run == 0:
+            raise ValueError(
+                "n_permutations must be >= 2 for antithetic sampling")
+        shapley_values /= n_run
+
         return shapley_values
     
     def _update_shapley_values(self, X_col: np.ndarray, perm: np.ndarray,
@@ -368,6 +375,106 @@ def compute_shapley_entropy(X, n_permutations=100, n_jobs=-1, random_state=42):
     """Convenience function for entropy behavioral space."""
     sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs, random_state=random_state)
     return sb.transform(X, value_function='entropy')
+
+
+def find_break_zones(values, z_threshold=2.5, min_region_fraction=0.05,
+                     max_straggler_fraction=0.02):
+    """
+    Find statistically significant sparse bands ("break zones") along one axis.
+
+    Intended for the principal components of a behavioral space projection:
+    the dense blocks between zones are natural candidate regions, and
+    samples inside a zone are best left unassigned. This is the algorithmic
+    core of the behavioral_break_finder.py script distributed with this
+    package (see copy_scripts).
+
+    A break zone is built in three steps:
+      1. Sort the values and compute nearest-neighbor gaps. Gaps whose
+         z-score (against the mean and standard deviation of all gaps)
+         exceeds ``z_threshold`` are significant.
+      2. Significant gaps that would isolate fewer than
+         ``min_region_fraction * n`` samples on either side are rejected,
+         so single extreme observations never define a boundary. Rejected
+         gaps that are still strong (z >= 3) and separate a coherent group
+         (>= 1% of samples on each side) are flagged as satellite
+         candidates: the natural boundaries of small clusters split off
+         from a dominant central population.
+      3. Surviving gaps separated by at most
+         ``max_straggler_fraction * n`` straggler points are merged into
+         a single zone.
+
+    Parameters
+    ----------
+    values : array-like
+        One-dimensional values (e.g. one principal component).
+    z_threshold : float
+        Significance threshold for gap z-scores.
+    min_region_fraction : float
+        Minimum fraction of samples required on each side of a zone.
+    max_straggler_fraction : float
+        Gaps separated by at most this fraction of samples merge into
+        one zone.
+
+    Returns
+    -------
+    zones : list of dict
+        Each with keys ``lower_edge``, ``upper_edge``, ``midpoint``,
+        ``n_below``, ``n_inside``, ``n_above``, ``max_z``.
+    rejected : list of dict
+        Rejected significant gaps, each with keys ``position``,
+        ``n_below``, ``n_above``, ``z``, ``satellite``.
+    """
+    v = np.sort(np.asarray(values, dtype=float))
+    n = len(v)
+    if n < 3:
+        return [], []
+    gaps = np.diff(v)
+    gap_std = gaps.std()
+    if gap_std == 0:
+        return [], []
+    z = (gaps - gaps.mean()) / gap_std
+
+    sig = np.where(z > z_threshold)[0]
+    min_side = int(np.ceil(min_region_fraction * n))
+    max_stragglers = max(1, int(round(max_straggler_fraction * n)))
+    min_satellite = max(2, int(np.ceil(0.01 * n)))
+
+    rejected = []
+    kept = []
+    for i in sig:
+        n_below, n_above = i + 1, n - i - 1
+        if n_below < min_side or n_above < min_side:
+            rejected.append({
+                'position': 0.5 * (v[i] + v[i + 1]),
+                'n_below': n_below, 'n_above': n_above, 'z': z[i],
+                'satellite': (min(n_below, n_above) >= min_satellite
+                              and z[i] >= 3.0),
+            })
+        else:
+            kept.append(i)
+
+    zones = []
+    if kept:
+        groups = [[kept[0]]]
+        for i in kept[1:]:
+            if i - groups[-1][-1] <= max_stragglers:
+                groups[-1].append(i)
+            else:
+                groups.append([i])
+
+        for g in groups:
+            lo, hi = g[0], g[-1] + 1
+            zones.append({
+                'lower_edge': v[lo],
+                'upper_edge': v[hi],
+                'midpoint': 0.5 * (v[lo] + v[hi]),
+                'n_below': lo + 1,
+                'n_inside': hi - lo - 1,
+                'n_above': n - hi,
+                'max_z': z[g].max(),
+            })
+
+    return zones, rejected
 
 
 if __name__ == "__main__":
