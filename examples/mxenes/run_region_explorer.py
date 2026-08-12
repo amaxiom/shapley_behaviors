@@ -33,7 +33,7 @@ LABEL_COLUMNS = [
 OUTPUT_DIR = 'behavioral_exploration'
 
 # Path to behavioral spaces from space explorer
-BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/mxene_behavioral_spaces_all.npy'
+BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/mxene_behavioral_spaces.npy'
 
 # Visualization mode: 'combined' or 'separate'
 PLOT_MODE = 'combined'
@@ -41,8 +41,10 @@ PLOT_MODE = 'combined'
 # =====================================================================
 # USER-DEFINED REGIONS
 # =====================================================================
-# Define regions based on visual inspection of behavioral space plots
-# PC1/PC2 ranges are approximate - adjust based on your plots
+# Tip: run the region explorer once with USER_REGIONS = None to detect
+# statistically significant break zones and satellite candidate gaps
+# automatically; the reported gap midpoints make robust boundaries.
+# PC1/PC2 ranges below are approximate - adjust based on your plots
 
 USER_REGIONS = {
     'F_terminated': {

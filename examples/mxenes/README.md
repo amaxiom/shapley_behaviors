@@ -4,7 +4,7 @@ This example demonstrates behavioral space analysis on MXenes with mixed continu
 
 ## Dataset
 
-**File:** `mxene_mendeleev.csv` 
+**File:** `mxene_mendeleev.csv` (not included - use your own data)
 
 **Structure:**
 - **ID column:** Formula (e.g., "Ti2C", "Hf2N")
@@ -14,7 +14,7 @@ This example demonstrates behavioral space analysis on MXenes with mixed continu
   - Capacity (mAh/g)
   - Charge (unitless)
 - **Labels (categorical):**
-  - M: Metal element(s) (e.g., "Ti")
+  - M: Metal element(s) (e.g., "Ti", "TiTiTiTiHfHfHfHf")
   - X: Carbon/Nitrogen (e.g., "C", "N")
   - T: Termination group(s) (e.g., "F", "O", "OH")
   - Z: Intercalated ion(s) (e.g., "Li", "Na", "K", "Mg")
@@ -156,7 +156,7 @@ After running both scripts:
 
 ```
 behavioral_exploration/
-├── mxene_behavioral_spaces_all.npy       # For region explorer
+├── mxene_behavioral_spaces.npy       # For region explorer
 ├── mxene_hopkins_statistics.csv
 ├── mxene_clustering_statistics.csv
 ├── mxene_outliers_*.csv                  # 4 files

@@ -4,7 +4,7 @@ This example demonstrates behavioral space analysis on a magnesium alloys datase
 
 ## Dataset
 
-**File:** `mg_data.csv` (not included, or use the one from https://github.com/katrina-coder/Magnesium-alloys-database)
+**File:** `mg_data.csv` (not included - use your own data)
 
 **Structure:**
 - **ID column:** Unique identifier for each alloy
@@ -165,7 +165,7 @@ After running both scripts:
 
 ```
 behavioral_exploration/
-├── Mg_behavioral_spaces_all.npy          # Behavioral spaces (for region explorer)
+├── Mg_behavioral_spaces.npy          # Behavioral spaces (for region explorer)
 ├── Mg_hopkins_statistics.csv             # Clustering metrics
 ├── Mg_clustering_statistics.csv          # PCA variance, CV, etc.
 ├── Mg_outliers_*.csv                     # 4 files, one per space

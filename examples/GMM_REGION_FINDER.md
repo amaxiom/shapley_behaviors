@@ -5,6 +5,18 @@ PCA projection of any Shapley behavioral space using Gaussian Mixture Models
 (GMM) with a BIC elbow criterion, then generates a `USER_REGIONS` dictionary
 ready to pass to `behavioral_region_explorer.py`.
 
+> **How this relates to the shipped tools (0.1.3).**
+> `behavioral_region_explorer.py` now has integrated gap-based break
+> detection (run with `USER_REGIONS = None`), which is the recommended
+> first choice: it needs no component-count selection and its boundaries
+> sit in literal empty gaps. The GMM approach in Part 1 remains a useful
+> **alternative** when modes overlap and no empty gap exists, since it can
+> place a boundary at a density *valley* rather than requiring a true gap.
+> Part 2 (K-means assisted boundaries) is **superseded** by the shipped
+> `behavioral_cluster_explorer.py`, which analyses the k-means clusters
+> directly; use Part 2 only if you specifically want rectangular
+> `USER_REGIONS` derived from a k-means solution.
+
 ---
 
 ## Prerequisites
@@ -296,5 +308,6 @@ Same as Part 1. Either copy the Step K3 output, or in Step K4 set
 
 If you use this tool in published work, please cite:
 
-> Liu, T. & Barnard, A. S. (2025). Explainable Distributional Structure of
-> MXene Compositions Revealed by Shapley Analysis. *Journal of Chemical Physics*.
+> Liu, T. & Barnard, A. S. (2025). Understanding interpretable patterns of
+> Shapley behaviours in materials data. *Machine Learning: Engineering*, 1,
+> 015004. https://doi.org/10.1088/3049-4761/adaaf6
