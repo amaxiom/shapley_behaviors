@@ -182,6 +182,14 @@ COLORS = [...]          # optional; 10-colour default palette cycles
 Clusters are exclusive (every sample belongs to exactly one) and are
 lettered A, B, C, ... left-to-right by PC1 centroid.
 
+`LABEL_COLUMNS` may mix continuous and categorical targets. Continuous
+labels are summarised as mean/std/min/median/max and drawn as boxplots.
+Categorical labels are auto-detected and instead summarised by their
+dominant category, that category's share of the cluster, and the number
+of categories present, with a full cluster-by-category breakdown written
+to `{DATASET_NAME}_cluster_{label}_composition.csv` (percentages within
+each cluster) and drawn as a stacked composition bar.
+
 ### USER_REGIONS (region explorer only)
 **Type:** Dictionary  
 **Example:**

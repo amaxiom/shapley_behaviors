@@ -593,6 +593,19 @@ Include them in:
 
 ## Troubleshooting
 
+### Problem: Hopkins = 1.0000 exactly (in every space)
+
+**Cause:** a defect in version 0.1.3 and earlier. The nearest-neighbor
+search for sampled data points masked an advanced-indexing copy rather
+than the distance matrix itself, so every sampled point matched itself
+at distance zero, forcing *H* to exactly 1.0 regardless of the data.
+
+**Solution:** upgrade to 0.1.4 or later (`pip install -U
+shapley_behaviors`) and recompute. Any Hopkins value of exactly 1.0000,
+or any accompanying *p* = 1.0000, produced by an earlier version should
+be discarded rather than interpreted. Region, cluster, CV and PCA
+results are unaffected, as none of them use the Hopkins statistic.
+
 ### Problem: Hopkins ≈ 0.5 everywhere
 
 **Possible causes:**

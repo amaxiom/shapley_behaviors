@@ -445,10 +445,22 @@ DROP_COLUMNS, LABEL_COLUMNS, OUTPUT_DIR, BEHAVIORAL_SPACES_FILE), plus optional:
 - SEED: reproducibility (default 42)
 - DATASET_LABEL, COLORS: naming and palette
 
+LABEL HANDLING
+--------------
+LABEL_COLUMNS may mix continuous and categorical targets; the type of each is
+auto-detected. Continuous labels are summarised as mean/std/min/median/max and
+drawn as boxplots. Categorical labels are summarised by their dominant category,
+that category's share of the cluster, and the number of categories present, with
+a full cluster-by-category breakdown written to its own CSV and drawn as a
+stacked composition bar (a boxplot being undefined for categories).
+
 OUTPUT FILES
 ------------
 - {name}_cluster_{L}_samples.csv / _full_data.csv per cluster
-- {name}_cluster_property_summary.csv (mean/std/min/median/max per label)
+- {name}_cluster_property_summary.csv (continuous: mean/std/min/median/max;
+  categorical: dominant category, its share, number of categories, valid count)
+- {name}_cluster_{label}_composition.csv (one per categorical label,
+  percentages within each cluster)
 - {name}_cluster_composition_summary.csv (mean feature values + OVERALL column)
 - {name}_cluster_pc_space.png, {name}_cluster_property_boxplots.png
 
