@@ -312,8 +312,8 @@ If you use this toolkit in your research, please cite:
 @software{shapley\_behavioral\_analysis,
   author = {Barnard, Amanda S. and Liu, Tommy},
   title = {Shapley Behavioral Analysis Toolkit},
-  year = {2024},
-  url = {https://github.com/yourusername/shapley-behaviors}
+  year = {2026},
+  url = {https://github.com/amaxiom/shapley_behaviors}
 }
 ```
 
