@@ -152,9 +152,12 @@ def hopkins_statistic(X, n_samples=None, random_state=42):
     
     from scipy.spatial.distance import cdist
     
-    # Distances for real samples
+    # Distances for real samples. Each sampled point's own column must be
+    # masked directly: dist_real[:, sample_indices] is an advanced-indexing
+    # copy, so np.fill_diagonal on it never reaches dist_real and every
+    # sampled point finds itself at distance 0 (H degenerates to exactly 1).
     dist_real = cdist(X_sample, X_scaled, metric='euclidean')
-    np.fill_diagonal(dist_real[:, sample_indices], np.inf)
+    dist_real[np.arange(len(sample_indices)), sample_indices] = np.inf
     u = np.min(dist_real, axis=1)
     
     # Distances for random samples

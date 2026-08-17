@@ -4,10 +4,11 @@
 
 This toolkit provides a family of complementary Python tools for analyzing high-dimensional datasets by transforming raw features into interpretable behavioral spaces that expose clustering patterns invisible in the original data: a space explorer to generate and validate the behavioral transformations, a region explorer with integrated automatic break detection to define and analyze regions of the projections, and a k-means cluster explorer for exclusive cluster-based analysis.
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI version](https://badge.fury.io/py/shapley_behaviors.svg)](https://pypi.org/project/shapley_behaviors/)
+\[!\[Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
+\[!\[License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+\[!\[PyPI version](https://badge.fury.io/py/shapley\_behaviors.svg)](https://pypi.org/project/shapley\_behaviors/)
 
 ## What Does This Do?
 
@@ -27,19 +28,20 @@ Traditional analysis of data often misses important patterns because features in
 ## Installation
 
 ### Requirements
-- Python 3.8+
-- numpy
-- pandas
-- matplotlib
-- scikit-learn
-- scipy
-- joblib
+
+* Python 3.8+
+* numpy
+* pandas
+* matplotlib
+* scikit-learn
+* scipy
+* joblib
 
 ### Setup
 
 ```bash
-git clone https://github.com/amaxiom/shapley_behaviors.git
-cd shapley_behaviors
+git clone https://github.com/amaxiom/shapley\_behaviors.git
+cd shapley\_behaviors
 pip install -r requirements.txt
 ```
 
@@ -53,47 +55,48 @@ import pandas as pd
 
 # Configuration
 SEED = 42
-N_PERMUTATIONS = 200  # Use 100-1000 depending on dataset size
-N_JOBS = -1  # Use all CPU cores
+N\_PERMUTATIONS = 200  # Use 100-1000 depending on dataset size
+N\_JOBS = -1  # Use all CPU cores
 
-DATASET_NAME = "Mg"
-DATA_FILE = "mg_data.csv"
-ID_COLUMN = "ID"
-DROP_COLUMNS = ["Condition", "Process", "DOI"]  # Non-feature columns, or None
-LABEL_COLUMNS = ['Yield_Strength', 'Tensile_Strength', 'Ductility']
-OUTPUT_DIR = 'behavioral_exploration'
+DATASET\_NAME = "Mg"
+DATA\_FILE = "mg\_data.csv"
+ID\_COLUMN = "ID"
+DROP\_COLUMNS = \["Condition", "Process", "DOI"]  # Non-feature columns, or None
+LABEL\_COLUMNS = \['Yield\_Strength', 'Tensile\_Strength', 'Ductility']
+OUTPUT\_DIR = 'behavioral\_exploration'
 
-SELECTED_FEATURES = ['Al', 'Zn', 'Y']  # Optional: features to visualize, or None
+SELECTED\_FEATURES = \['Al', 'Zn', 'Y']  # Optional: features to visualize, or None
 
 # Run analysis
-%run -i behavioral_space_explorer.py
+%run -i behavioral\_space\_explorer.py
 ```
 
 **Output:**
-- 4 behavioral spaces (variance, skewness, kurtosis, entropy)
-- Hopkins statistics measuring clustering tendency
-- PCA visualizations colored by labels and feature concentrations
-- Outlier detection for each space
-- **Profile plots showing feature-level breakdown for top outliers**
+
+* 4 behavioral spaces (variance, skewness, kurtosis, entropy)
+* Hopkins statistics measuring clustering tendency
+* PCA visualizations colored by labels and feature concentrations
+* Outlier detection for each space
+* **Profile plots showing feature-level breakdown for top outliers**
 
 ### Step 2: Detect Break Zones (optional but recommended)
 
 Region boundaries do not need to be guessed. Run the region explorer
-without `USER_REGIONS` and it reports statistically significant break
+without `USER\_REGIONS` and it reports statistically significant break
 zones and satellite candidate gaps along PC1 and PC2 of each requested
 space, saves diagnostic figures, and leaves the detected boundaries in
 the notebook namespace:
 
 ```python
 # Use same configuration as Step 1, plus:
-BREAK_SPACES = ['variance']    # default: all spaces in the file
-BREAK_Z_THRESHOLD = 2.5        # gap significance (z-score)
-MIN_REGION_FRACTION = 0.05     # min fraction of samples on each side
-MAX_STRAGGLER_FRACTION = 0.02  # merge gaps separated by <= this fraction
+BREAK\_SPACES = \['variance']    # default: all spaces in the file
+BREAK\_Z\_THRESHOLD = 2.5        # gap significance (z-score)
+MIN\_REGION\_FRACTION = 0.05     # min fraction of samples on each side
+MAX\_STRAGGLER\_FRACTION = 0.02  # merge gaps separated by <= this fraction
 
-USER_REGIONS = None            # break detection only
-%run -i behavioral_region_explorer.py
-# -> break_zones, pc1_zones, pc2_zones available in the namespace
+USER\_REGIONS = None            # break detection only
+%run -i behavioral\_region\_explorer.py
+# -> break\_zones, pc1\_zones, pc2\_zones available in the namespace
 ```
 
 Gap midpoints make robust rectangle bounds because the gap interior
@@ -105,35 +108,36 @@ Define regions of interest (typically from the detected boundaries)
 and run the region explorer again:
 
 ```python
-USER_REGIONS = {
-    'high_strength': {
+USER\_REGIONS = {
+    'high\_strength': {
         'space': 'variance',
-        'pc1_range': (0.3, 0.6),
-        'pc2_range': (-0.2, 0.2),
+        'pc1\_range': (0.3, 0.6),
+        'pc2\_range': (-0.2, 0.2),
         'description': 'High tensile strength region',
         'color': 'red'
     },
-    'high_ductility': {
+    'high\_ductility': {
         'space': 'variance',
-        'pc1_range': (-0.5, -0.2),
-        'pc2_range': (-0.3, 0.3),
+        'pc1\_range': (-0.5, -0.2),
+        'pc2\_range': (-0.3, 0.3),
         'description': 'High elongation region',
         'color': 'blue'
     }
 }
 
-PLOT_MODE = 'combined'  # or 'separate'
-BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Mg_behavioral_spaces.npy'
+PLOT\_MODE = 'combined'  # or 'separate'
+BEHAVIORAL\_SPACES\_FILE = 'behavioral\_exploration/Mg\_behavioral\_spaces.npy'
 
 # Run region analysis
-%run -i behavioral_region_explorer.py
+%run -i behavioral\_region\_explorer.py
 ```
 
 **Output:**
-- Composition tables showing enrichment/depletion of each feature per region
-- Label statistics comparing regions
-- Box plots, heatmaps, and distribution visualizations
-- **Critical validation:** Original vs behavioral space comparisons proving regions are meaningful
+
+* Composition tables showing enrichment/depletion of each feature per region
+* Label statistics comparing regions
+* Box plots, heatmaps, and distribution visualizations
+* **Critical validation:** Original vs behavioral space comparisons proving regions are meaningful
 
 ## Example Results
 
@@ -151,88 +155,93 @@ BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Mg_behavioral_spaces.npy'
 
 ## Tools Overview
 
-### `behavioral_space_explorer.py`
+### `behavioral\_space\_explorer.py`
 
 **Purpose:** Generate and analyze behavioral transformations
 
 **Key Features:**
-- Computes 4 Shapley behavioral spaces (variance, skewness, kurtosis, entropy)
-- Auto-detects continuous vs categorical labels
-- Handles missing data (shown in red)
-- Parallel processing for speed
-- Comprehensive statistical validation (Hopkins, PCA variance, outliers)
-- **Profile plots for understanding outliers** (SHAP-like feature breakdowns)
+
+* Computes 4 Shapley behavioral spaces (variance, skewness, kurtosis, entropy)
+* Auto-detects continuous vs categorical labels
+* Handles missing data (shown in red)
+* Parallel processing for speed
+* Comprehensive statistical validation (Hopkins, PCA variance, outliers)
+* **Profile plots for understanding outliers** (SHAP-like feature breakdowns)
 
 **When to use:** Starting point for any new dataset
 
-### `behavioral_region_explorer.py`
+### `behavioral\_region\_explorer.py`
 
 **Purpose:** Detect region boundaries automatically, then analyze user-defined regions in behavioral spaces
 
 **Key Features:**
-- **Integrated automatic break detection:** statistically significant nearest-neighbor gaps merge into break zones; strong sub-threshold gaps are reported as satellite candidates (run without `USER_REGIONS` for a break-detection-only pass)
-- Extract samples from specified PC1/PC2 ranges
-- Quantify compositional enrichment/depletion (Change_% vs dataset average)
-- Compare labels across regions (box plots, statistics)
-- **Validate** regions by comparing original vs behavioral space
-- Works with continuous and categorical labels
-- Safe with non-unique sample IDs (all statistics use positional indexing)
+
+* **Integrated automatic break detection:** statistically significant nearest-neighbor gaps merge into break zones; strong sub-threshold gaps are reported as satellite candidates (run without `USER\_REGIONS` for a break-detection-only pass)
+* Extract samples from specified PC1/PC2 ranges
+* Quantify compositional enrichment/depletion (Change\_% vs dataset average)
+* Compare labels across regions (box plots, statistics)
+* **Validate** regions by comparing original vs behavioral space
+* Works with continuous and categorical labels
+* Safe with non-unique sample IDs (all statistics use positional indexing)
 
 **When to use:** After generating behavioral spaces, to find and characterise their internal structure
 
-### `behavioral_cluster_explorer.py`
+### `behavioral\_cluster\_explorer.py`
 
 **Purpose:** K-means cluster analysis of behavioral spaces, as an alternative to rectangular regions
 
 **Key Features:**
-- Clusters the 2D PCA projection of any behavioral space; every sample belongs to exactly one cluster
-- Clusters labelled A, B, C, ... left-to-right by PC1 centroid
-- Per-cluster sample lists, full-data exports, property and composition summaries
-- Cluster scatter plot and per-property box plots
+
+* Clusters the 2D PCA projection of any behavioral space; every sample belongs to exactly one cluster
+* Clusters labelled A, B, C, ... left-to-right by PC1 centroid
+* Handles mixed continuous and categorical labels: continuous targets get boxplots and mean/std/min/median/max, categorical targets get a dominant-category summary, a cluster-by-category cross-tab CSV, and a stacked composition bar
+* Per-cluster sample lists, full-data exports, property and composition summaries
+* Cluster scatter plot and per-property box plots
 
 **When to use:** When exclusive, algorithmically-assigned groups are preferred over hand-defined rectangles, or to cross-validate region definitions
 
-### `shapley_behaviors.py`
+### `shapley\_behaviors.py`
 
 **Purpose:** Core Shapley value computation engine
 
 **Key Features:**
-- Monte Carlo permutation sampling
-- Parallelized across features
-- Four value functions: variance, skewness, kurtosis, entropy
-- Optimized for large datasets
+
+* Monte Carlo permutation sampling
+* Parallelized across features
+* Four value functions: variance, skewness, kurtosis, entropy
+* Optimized for large datasets
 
 ## Repository Structure
 
 ```
 shapley-behavioral-analysis/
-├── behavioral_space_explorer.py    # Main analysis tool
-├── behavioral_region_explorer.py   # Break detection + region analysis
-├── behavioral_cluster_explorer.py  # K-means cluster analysis
-├── shapley_behaviors.py            # Core Shapley computations
+├── behavioral\_space\_explorer.py    # Main analysis tool
+├── behavioral\_region\_explorer.py   # Break detection + region analysis
+├── behavioral\_cluster\_explorer.py  # K-means cluster analysis
+├── shapley\_behaviors.py            # Core Shapley computations
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
 ├── examples/
-│   ├── gmm_region_finder.ipynb     # GMM-based boundary detection (alternative)
-│   ├── GMM_REGION_FINDER.md
-│   ├── magnesium_alloys/
+│   ├── gmm\_region\_finder.ipynb     # GMM-based boundary detection (alternative)
+│   ├── GMM\_REGION\_FINDER.md
+│   ├── magnesium\_alloys/
 │   │   ├── README.md
-│   │   ├── run_space_explorer.py
-│   │   └── run_region_explorer.py
+│   │   ├── run\_space\_explorer.py
+│   │   └── run\_region\_explorer.py
 │   └── mxenes/
 │       ├── README.md
-│       ├── run_space_explorer.py
-│       └── run_region_explorer.py
+│       ├── run\_space\_explorer.py
+│       └── run\_region\_explorer.py
 └── docs/
-    ├── toolkit_description.txt
-    ├── CONFIGURATION_GUIDE.md
-    └── INTERPRETATION_GUIDE.md
+    ├── toolkit\_description.txt
+    ├── CONFIGURATION\_GUIDE.md
+    └── INTERPRETATION\_GUIDE.md
 ```
 
 ## How It Works
 
-### 1. Shapley Behavioral Transformation
+### 1\. Shapley Behavioral Transformation
 
 For each sample and each feature, compute:
 
@@ -240,44 +249,48 @@ For each sample and each feature, compute:
 
 Where coalition value is a statistical property (variance, skewness, etc.) of the feature subset.
 
-### 2. Behavioral Spaces
+### 2\. Behavioral Spaces
 
 Each transformation creates a new space where:
-- **Variance space:** Features weighted by contribution to compositional variance
-- **Skewness space:** Features weighted by contribution to distributional asymmetry
-- **Kurtosis space:** Features weighted by contribution to tail heaviness
-- **Entropy space:** Features weighted by contribution to uncertainty/diversity
 
-### 3. Pattern Discovery
+* **Variance space:** Features weighted by contribution to compositional variance
+* **Skewness space:** Features weighted by contribution to distributional asymmetry
+* **Kurtosis space:** Features weighted by contribution to tail heaviness
+* **Entropy space:** Features weighted by contribution to uncertainty/diversity
+
+### 3\. Pattern Discovery
 
 Apply PCA to behavioral spaces to find 2D projections where samples cluster by similar behavioral signatures.
 
-### 4. Validation
+### 4\. Validation
 
 **Critical test:** Do regions that cluster in behavioral space also cluster in original space?
-- **NO** → Transformation revealed new structure (genuine discovery)
-- **YES** → Just found existing clusters (not interesting)
+
+* **NO** → Transformation revealed new structure (genuine discovery)
+* **YES** → Just found existing clusters (not interesting)
 
 This toolkit ensures you find the first case, not the second.
 
 ## Documentation
 
-- **[Comprehensive Description](docs/toolkit_description.txt)** - Complete technical details
-- **[Configuration Guide](docs/CONFIGURATION_GUIDE.md)** - How to set up for study
-- **[Interpretation Guide](docs/INTERPRETTION_GUIDE.md)** - How to interpret results
-- **[Examples](examples/)** - Step-by-step tutorials
+* [**Comprehensive Description**](docs/toolkit_description.txt) - Complete technical details
+* [**Configuration Guide**](docs/CONFIGURATION_GUIDE.md) - How to set up for study
+* [**Interpretation Guide**](docs/INTERPRETTION_GUIDE.md) - How to interpret results
+* [**Examples**](examples/) - Step-by-step tutorials
 
 ## Supported Data Types
 
 ### Labels (Target Dependent Variables)
-- **Continuous:** Mechanical properties, voltages, capacities (auto-detected)
-- **Categorical:** Material types, processing routes, phase labels (auto-detected)
-- **Mixed:** Both in the same dataset
+
+* **Continuous:** Mechanical properties, voltages, capacities (auto-detected)
+* **Categorical:** Material types, processing routes, phase labels (auto-detected)
+* **Mixed:** Both in the same dataset
 
 ### Features (Independent Variables)
-- **Must be numeric:** e.g. Elemental concentrations, structural parameters, biomarkers
-- **Any dimensionality:** Works with 5-500+ features
-- **Sparse OK:** Features can be zero for many samples
+
+* **Must be numeric:** e.g. Elemental concentrations, structural parameters, biomarkers
+* **Any dimensionality:** Works with 5-500+ features
+* **Sparse OK:** Features can be zero for many samples
 
 ## Contributing
 
@@ -298,13 +311,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use this toolkit in your research, please cite:
 
 ```bibtex
-@software{shapley_behavioral_analysis,
+@software{shapley\_behavioral\_analysis,
   author = {Barnard, Amanda S. and Liu, Tommy},
   title = {Shapley Behavioral Analysis Toolkit},
   year = {2024},
   url = {https://github.com/yourusername/shapley-behaviors}
 }
 ```
+
 ```bibtex
 @article{Liu2025UnderstandingIP,
   title={Understanding Interpretable Patterns of Shapley Behaviours in Materials Data},
@@ -320,30 +334,32 @@ If you use this toolkit in your research, please cite:
 
 ## Authors
 
-- **Amanda S. Barnard** - *Lead Developer, Methodology* - [amaxiom](https://github.com/amaxiom)
-  - Senior Professor and Computational Science Lead, ANU School of Computing
-  - Member of the Order of Australia
-  - Prime Minister's Prize for Physical Scientist of the Year
-  
-- **Tommy Liu** - *Co-Developer, Implementation* - [uilymmot](https://github.com/uilymmot)
-  - Contributed to core algorithm development and validation methodology
+* **Amanda S. Barnard** - *Lead Developer, Methodology* - [amaxiom](https://github.com/amaxiom)
+
+  * Senior Professor and Computational Science Lead, ANU School of Computing
+  * Member of the Order of Australia
+  * Prime Minister's Prize for Physical Scientist of the Year
+* **Tommy Liu** - *Co-Developer, Implementation* - [uilymmot](https://github.com/uilymmot)
+
+  * Contributed to core algorithm development and validation methodology
 
 ## Acknowledgments
 
-- Shapley values concept from cooperative game theory (Lloyd Shapley, 1953)
-- Hopkins statistic implementation adapted from scikit-learn
-- Inspired by materials informatics and interpretable machine learning communities
+* Shapley values concept from cooperative game theory (Lloyd Shapley, 1953)
+* Hopkins statistic implementation adapted from scikit-learn
+* Inspired by materials informatics and interpretable machine learning communities
 
 ## Contact
 
-- **Primary Contact:** Amanda S. Barnard
-- **Email:** amanda.s.barnard@anu.edu.au
-- **Issues:** [GitHub Issues](https://github.com/amaxiom/shapley-behaviors/issues)
+* **Primary Contact:** Amanda S. Barnard
+* **Email:** amanda.s.barnard@anu.edu.au
+* **Issues:** [GitHub Issues](https://github.com/amaxiom/shapley-behaviors/issues)
 
 ## 🔗 Related Resources
 
-- [Materials Project](https://materialsproject.org/) - Materials database
-- [SHAP](https://github.com/slundberg/shap) - General Shapley value ML explainability
-- [Matminer](https://hackingmaterials.lbl.gov/matminer/) - Materials data mining tools
+* [Materials Project](https://materialsproject.org/) - Materials database
+* [SHAP](https://github.com/slundberg/shap) - General Shapley value ML explainability
+* [Matminer](https://hackingmaterials.lbl.gov/matminer/) - Materials data mining tools
 
----
+\---
+

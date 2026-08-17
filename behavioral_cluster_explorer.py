@@ -43,6 +43,17 @@ NOTES:
   error if the counts disagree.
 - Clusters are ordered left-to-right by their PC1 centroid and labelled A, B,
   C, ... so the letters read naturally across the PCA plot.
+- LABEL_COLUMNS may be continuous or categorical; each label is classified with
+  the same is_categorical rule the region explorer uses. Continuous labels are
+  summarised as mean/std/min/median/max and drawn as boxplots. Categorical
+  labels are summarised as dominant category and share, with a full
+  cluster-by-category cross-tab CSV, and drawn as stacked composition bars.
+- Output file names are keyed on DATASET_NAME only, not SPACE. To cluster more
+  than one behavioral space of the same dataset, vary DATASET_NAME per run
+  (e.g. DATASET_NAME = "ABC_variance") or the second run overwrites the first.
+- MAX_COMPOSITION_ROWS caps the PRINTED feature-composition table (default None
+  = print every feature). Useful for wide feature sets; the CSV is unaffected
+  and always holds every feature.
 """
 
 import os
@@ -81,11 +92,42 @@ DATASET_LABEL = globals().get('DATASET_LABEL', DATASET_NAME)
 COLORS = globals().get(
     'COLORS', ['blue', 'red', 'orange', 'cyan', 'green', 'purple', 'yellow',
                'brown', 'pink', 'olive'])
+# Cap the printed feature-composition table (the CSV always holds every
+# feature). None prints all of them, which is unreadable for wide datasets.
+MAX_COMPOSITION_ROWS = globals().get('MAX_COMPOSITION_ROWS', None)
 
 
 # =====================================================================
 # CORE FUNCTIONS
 # =====================================================================
+
+def is_categorical(labels):
+    """Determine if labels are categorical or continuous.
+
+    Kept identical to the implementation in behavioral_region_explorer.py:
+    the two tools must classify a label the same way.
+    """
+    # Convert to pandas Series if it's a numpy array for easier handling
+    if isinstance(labels, np.ndarray):
+        labels = pd.Series(labels)
+
+    # Remove NaN for type checking
+    valid_labels = labels[~pd.isna(labels)]
+
+    if len(valid_labels) == 0:
+        return False
+
+    # Check if dtype is object or string
+    if pd.api.types.is_object_dtype(valid_labels) or pd.api.types.is_string_dtype(valid_labels):
+        return True
+
+    # For numeric data, check uniqueness
+    n_unique = len(np.unique(valid_labels))
+    if n_unique <= 20 and n_unique < len(valid_labels) * 0.05:  # Less than 5% unique
+        return True
+
+    return False
+
 
 def load_data_and_space(space=SPACE):
     """Load the sample table and one behavioral space (positionally aligned)."""
@@ -170,18 +212,41 @@ def export_cluster_members(df, labels, pc1, pc2, clusters):
 
 
 def target_property_summary(df, labels, clusters):
-    """Per-cluster mean/std/min/median/max for each LABEL_COLUMN."""
+    """Per-cluster summary of each LABEL_COLUMN.
+
+    Continuous labels get mean/std/min/median/max. Categorical labels get the
+    dominant category, its share, and the number of categories present; the
+    full cluster-by-category breakdown is written to a separate cross-tab CSV
+    per categorical label (percentages within each cluster).
+    """
+    categorical = {lab: is_categorical(df[lab].values) for lab in LABEL_COLUMNS}
+
     rows = []
     for meta in clusters.values():
-        sub = df.loc[labels == meta['cluster_id']]
+        # Positional indexing: ID labels may repeat
+        sub = df.iloc[np.where(labels == meta['cluster_id'])[0]]
         row = {'Cluster': meta['letter'], 'Description': meta['description'],
                'n': meta['n']}
         for lab in LABEL_COLUMNS:
-            row[f'{lab}_mean'] = sub[lab].mean()
-            row[f'{lab}_std'] = sub[lab].std()
-            row[f'{lab}_min'] = sub[lab].min()
-            row[f'{lab}_median'] = sub[lab].median()
-            row[f'{lab}_max'] = sub[lab].max()
+            values = sub[lab]
+            n_valid = int(values.notna().sum())
+            if categorical[lab]:
+                counts = values.value_counts()
+                if n_valid > 0:
+                    row[f'{lab}_dominant'] = str(counts.index[0])
+                    row[f'{lab}_dominant_pct'] = 100.0 * counts.iloc[0] / n_valid
+                    row[f'{lab}_n_categories'] = int((counts > 0).sum())
+                else:
+                    row[f'{lab}_dominant'] = 'N/A'
+                    row[f'{lab}_dominant_pct'] = np.nan
+                    row[f'{lab}_n_categories'] = 0
+                row[f'{lab}_n_valid'] = n_valid
+            else:
+                row[f'{lab}_mean'] = values.mean()
+                row[f'{lab}_std'] = values.std()
+                row[f'{lab}_min'] = values.min()
+                row[f'{lab}_median'] = values.median()
+                row[f'{lab}_max'] = values.max()
         rows.append(row)
     summary = pd.DataFrame(rows).set_index('Cluster')
     summary.to_csv(
@@ -191,6 +256,24 @@ def target_property_summary(df, labels, clusters):
     print("=" * 70)
     with pd.option_context('display.max_columns', None, 'display.width', 200):
         print(summary.round(4))
+
+    # Full breakdown for each categorical label: counts and row percentages
+    letter_of = {meta['cluster_id']: meta['letter'] for meta in clusters.values()}
+    order = [meta['letter'] for meta in clusters.values()]
+    for lab, is_cat in categorical.items():
+        if not is_cat:
+            continue
+        cross = pd.crosstab(pd.Series([letter_of[c] for c in labels], name='Cluster'),
+                            df[lab].values)
+        cross = cross.reindex(order)
+        pct = 100.0 * cross.div(cross.sum(axis=1), axis=0)
+        pct.to_csv(os.path.join(
+            OUTPUT_DIR, f'{DATASET_NAME}_cluster_{lab}_composition.csv'))
+        print(f"\n{lab} composition per cluster (% of cluster):")
+        with pd.option_context('display.max_columns', None, 'display.width', 200):
+            print(pct.round(1))
+        print(f"  -> {DATASET_NAME}_cluster_{lab}_composition.csv")
+
     return summary
 
 
@@ -206,8 +289,20 @@ def feature_composition_summary(df, labels, feature_columns, clusters):
     print("\n" + "=" * 70)
     print("FEATURE COMPOSITION SUMMARY PER CLUSTER (mean value)")
     print("=" * 70)
+
+    shown = comp
+    if MAX_COMPOSITION_ROWS is not None and len(comp) > MAX_COMPOSITION_ROWS:
+        # Rank by how far any cluster mean departs from the overall mean,
+        # scaled by the overall mean so features of different units compare.
+        cluster_cols = [c for c in comp.columns if c != 'OVERALL']
+        scale = comp['OVERALL'].abs().replace(0, np.nan)
+        spread = comp[cluster_cols].sub(comp['OVERALL'], axis=0).abs().max(axis=1) / scale
+        shown = comp.loc[spread.sort_values(ascending=False).index[:MAX_COMPOSITION_ROWS]]
+        print(f"(showing the {MAX_COMPOSITION_ROWS} features that differ most between "
+              f"clusters, of {len(comp)}; all are in the CSV)")
+
     with pd.option_context('display.max_rows', None, 'display.width', 200):
-        print(comp.round(4))
+        print(shown.round(4))
     return comp
 
 
@@ -230,22 +325,50 @@ def plot_clusters_pc_space(labels, pc1, pc2, clusters):
 
 
 def plot_property_boxplots(df, labels, clusters):
-    """One boxplot panel per target property, one box per cluster."""
+    """One panel per target property.
+
+    Continuous labels get a boxplot per cluster; categorical labels get a
+    stacked bar of the category composition of each cluster (a boxplot is
+    undefined for categories).
+    """
     names = list(clusters.values())
     colors = [m['color'] for m in names]
     fig, axes = plt.subplots(1, len(LABEL_COLUMNS),
                              figsize=(6 * len(LABEL_COLUMNS), 5), squeeze=False)
     for k, lab in enumerate(LABEL_COLUMNS):
         axk = axes[0][k]
-        data = [df.loc[labels == m['cluster_id'], lab].dropna().values for m in names]
-        bp = axk.boxplot(data, patch_artist=True)
-        axk.set_xticks(range(1, len(names) + 1))
-        axk.set_xticklabels([m['letter'] for m in names])
-        for patch, color in zip(bp['boxes'], colors):
-            patch.set_facecolor(color)
-            patch.set_alpha(0.6)
+        if is_categorical(df[lab].values):
+            categories = pd.Series(df[lab].dropna().unique()).sort_values().tolist()
+            bottoms = np.zeros(len(names))
+            cmap = plt.cm.viridis(np.linspace(0, 0.9, max(len(categories), 1)))
+            for ci, cat in enumerate(categories):
+                heights = []
+                for m in names:
+                    sub = df.iloc[np.where(labels == m['cluster_id'])[0]][lab]
+                    n_valid = sub.notna().sum()
+                    heights.append(100.0 * (sub == cat).sum() / n_valid if n_valid else 0.0)
+                heights = np.array(heights)
+                axk.bar(range(len(names)), heights, bottom=bottoms,
+                        color=cmap[ci], edgecolor='white', linewidth=0.5,
+                        label=str(cat))
+                bottoms += heights
+            axk.set_xticks(range(len(names)))
+            axk.set_xticklabels([m['letter'] for m in names])
+            axk.set_ylabel(f'{lab} (% of cluster)', fontsize=12)
+            axk.set_ylim(0, 100)
+            axk.legend(fontsize=8, loc='center left', bbox_to_anchor=(1.01, 0.5),
+                       title=lab, title_fontsize=9)
+        else:
+            data = [df.iloc[np.where(labels == m['cluster_id'])[0]][lab].dropna().values
+                    for m in names]
+            bp = axk.boxplot(data, patch_artist=True)
+            axk.set_xticks(range(1, len(names) + 1))
+            axk.set_xticklabels([m['letter'] for m in names])
+            for patch, color in zip(bp['boxes'], colors):
+                patch.set_facecolor(color)
+                patch.set_alpha(0.6)
+            axk.set_ylabel(lab, fontsize=12)
         axk.set_xlabel('Cluster', fontsize=12)
-        axk.set_ylabel(lab, fontsize=12)
         axk.set_title(f'{lab} by cluster', fontsize=13)
         axk.grid(alpha=0.3, axis='y')
     plt.tight_layout()
@@ -277,6 +400,7 @@ def main():
     print("Per cluster : *_cluster_<L>_samples.csv, *_cluster_<L>_full_data.csv")
     print("Summaries   : *_cluster_property_summary.csv, "
           "*_cluster_composition_summary.csv")
+    print("Categorical : *_cluster_<label>_composition.csv (one per categorical label)")
     print("Figures     : *_cluster_pc_space.png, *_cluster_property_boxplots.png")
 
     return {
