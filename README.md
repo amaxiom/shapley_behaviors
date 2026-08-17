@@ -4,9 +4,9 @@
 
 This toolkit provides a family of complementary Python tools for analyzing high-dimensional datasets by transforming raw features into interpretable behavioral spaces that expose clustering patterns invisible in the original data: a space explorer to generate and validate the behavioral transformations, a region explorer with integrated automatic break detection to define and analyze regions of the projections, and a k-means cluster explorer for exclusive cluster-based analysis.
 
-!\[Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-!\[License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-!\[PyPI version](https://badge.fury.io/py/shapley\_behaviors.svg)](https://pypi.org/project/shapley\_behaviors/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI version](https://badge.fury.io/py/shapley_behaviors.svg)](https://pypi.org/project/shapley_behaviors/)
 
 ## What Does This Do?
 
