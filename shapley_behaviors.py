@@ -40,54 +40,80 @@ class ShapleyBehaviors:
         self.random_state = random_state
         self.rng = np.random.RandomState(random_state)
         
+    @staticmethod
+    def _observed(X_subset: np.ndarray) -> np.ndarray:
+        """The finite values of a subset.
+
+        Every value function reduces a column subset to one number, so a missing
+        entry is a sample that did not contribute rather than something to
+        impute. Dropping it here keeps all five functions consistent and keeps
+        the statistic on the scale it would have had if that sample had never
+        been collected.
+
+        Added in 0.1.5. Before it, three functions propagated NaN and
+        ``entropy_function`` did something worse: it returned a finite 0.0 for
+        any subset containing one, because ``np.min`` gave NaN, every
+        probability became NaN, and the ``probs > 0`` filter then removed them
+        all. A silent zero cannot be detected downstream.
+        """
+        a = np.asarray(X_subset, dtype=float).ravel()
+        return a[np.isfinite(a)]
+
     def variance_function(self, X_subset: np.ndarray) -> float:
-        """Compute variance (centered second moment)."""
-        if len(X_subset) == 0:
+        """Compute variance (centered second moment), over observed values."""
+        a = self._observed(X_subset)
+        if a.size == 0:
             return 0.0
-        return np.var(X_subset, ddof=0)
+        return float(np.var(a, ddof=0))
     
     def skewness_function(self, X_subset: np.ndarray) -> float:
-        """Compute skewness (normalized third moment)."""
-        if len(X_subset) < 2:
+        """Compute skewness (normalized third moment), over observed values."""
+        a = self._observed(X_subset)
+        if a.size < 2:
             return 0.0
         
-        mean = np.mean(X_subset)
-        std = np.std(X_subset, ddof=0)
+        mean = np.mean(a)
+        std = np.std(a, ddof=0)
         
         if std == 0:
             return 0.0
         
-        n = len(X_subset)
-        m3 = np.sum((X_subset - mean) ** 3) / n
+        n = a.size
+        m3 = np.sum((a - mean) ** 3) / n
         return m3 / (std ** 3)
     
     def kurtosis_function(self, X_subset: np.ndarray) -> float:
-        """Compute excess kurtosis (normalized fourth moment - 3)."""
-        if len(X_subset) < 2:
+        """Compute excess kurtosis (fourth moment - 3), over observed values."""
+        a = self._observed(X_subset)
+        if a.size < 2:
             return 0.0
         
-        mean = np.mean(X_subset)
-        std = np.std(X_subset, ddof=0)
+        mean = np.mean(a)
+        std = np.std(a, ddof=0)
         
         if std == 0:
             return 0.0
         
-        n = len(X_subset)
-        m4 = np.sum((X_subset - mean) ** 4) / n
+        n = a.size
+        m4 = np.sum((a - mean) ** 4) / n
         m2 = std ** 2
         return (m4 / (m2 ** 2)) - 3.0
     
     def entropy_function(self, X_subset: np.ndarray) -> float:
         """
-        Compute entropy (information content).
+        Compute entropy (information content), over observed values.
         Note: Requires positive values. Uses normalization if needed.
         """
-        if len(X_subset) == 0:
+        a = self._observed(X_subset)
+        if a.size == 0:
             return 0.0
         
         # Normalize to positive probability distribution
-        X_pos = X_subset - np.min(X_subset) + 1e-10
-        probs = X_pos / np.sum(X_pos)
+        X_pos = a - np.min(a) + 1e-10
+        total = np.sum(X_pos)
+        if not total > 0:
+            return 0.0
+        probs = X_pos / total
         
         # Remove zeros to avoid log(0)
         probs = probs[probs > 0]
@@ -98,10 +124,11 @@ class ShapleyBehaviors:
         return -np.sum(probs * np.log2(probs))
     
     def mean_function(self, X_subset: np.ndarray) -> float:
-        """Compute mean (first moment) - trivial transformation."""
-        if len(X_subset) == 0:
+        """Compute mean (first moment), over observed values."""
+        a = self._observed(X_subset)
+        if a.size == 0:
             return 0.0
-        return np.mean(X_subset)
+        return float(np.mean(a))
     
     def get_value_function(self, function_name: str) -> Callable:
         """Get value function by name."""
