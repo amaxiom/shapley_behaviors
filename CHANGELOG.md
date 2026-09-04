@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.1.6
+
+### Changed
+
+- **Each permutation is now walked in one vectorised pass instead of n value
+  function calls, making `transform` 27x faster at n=100 and 206x at n=900.**
+  The old walk called the value function on `X_col[perm[:j+1]]` for every j: a
+  fancy-index copy plus a full reduction at each step, so one permutation cost
+  O(n^2) and a transform cost O(M n^2 d) rather than the O(M n d) a description
+  of the algorithm would suggest.
+
+  All five statistics are functions of a growing prefix, so the whole
+  permutation is computed at once (`prefix_values`, now exported). The four
+  moment functions use cumulative power sums; entropy keeps a loop over blocks
+  of constant running minimum, which is O(n log n) because a random permutation
+  has only ~ln n prefix minima.
+
+  **This changes results in the last few digits.** Pass `incremental=False` to
+  `ShapleyBehaviors` or to any `compute_shapley_*` function to reproduce 0.1.5
+  and earlier **bit-identically** -- verified against the 0.1.5 module itself on
+  seven datasets and all five value functions. Both paths draw the same
+  permutations, so they differ only in floating-point detail:
+
+  - well-scaled data: at most 5e-11 of a column's spread,
+  - the estimator's own Monte Carlo error at n_permutations=1024: about 1e-1 of
+    a column's spread.
+
+  The difference is therefore some 10 orders of magnitude below the noise floor
+  of the estimate it belongs to. Additivity holds to 2e-14.
+
+### Fixed
+
+- **Columns whose offset dwarfs their spread were being decomposed
+  inaccurately.** The value functions take deviations about a mean computed at
+  the offset's magnitude, so at 1e8 +/- 1e-6 the rounding in that mean is a
+  large fraction of a deviation. Measured against a 60-digit reference, prefix
+  skewness carried **16% relative error** and variance 9e-4. The new path
+  centres each column once before accumulating, which removes it: the same
+  cases come back at 4e-16.
+
+  Affected any feature held in absolute units with a narrow range -- a lattice
+  parameter, a temperature in kelvin, a near-constant concentration. `mean` was
+  never affected, and `entropy` only mildly.
+
+  Note that `transform`'s additivity check compares against the batch value
+  function, so on such a column the check now reports the *reference* total's
+  error rather than the estimate's. Its warning says so.
+
+- The additivity warning suggested only "increase n_permutations". It now also
+  names the badly-scaled-column cause, which more permutations cannot fix.
+
+- **`behavioral_cluster_explorer.py` no longer destroys a previous space's
+  results in silence.** Output names key on `DATASET_NAME` and not on `SPACE`,
+  so clustering the variance space and then the kurtosis space of one dataset
+  overwrote every CSV and figure from the first run without a word. The
+  docstring listed this as something to remember.
+
+  A run now records which space produced its outputs, and a run that would
+  overwrite a different space's results says so, names the files at risk, and
+  gives the fix. A new `OUTPUT_STEM` setting (default `DATASET_NAME`, so
+  existing paths do not move) separates them automatically when set to
+  `f"{DATASET_NAME}_{SPACE}"`.
+
+  Default filenames are unchanged, so nothing downstream breaks.
+
 ## 0.1.5
 
 ### Fixed

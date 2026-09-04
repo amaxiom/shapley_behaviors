@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the original paper."
+title: "shapley-behaviors"
+version: 0.1.6
+license: MIT
+repository-code: "https://github.com/amaxiom/shapley_behaviors"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Liu
+      given-names: Tommy
+    - family-names: Barnard
+      given-names: Amanda S
+  title: "Understanding interpretable patterns of Shapley behaviours in materials data"
+  journal: "Machine Learning: Engineering"
+  volume: 1
+  year: 2025
+  pages: 015004
+  doi: "10.1088/3049-4761/adaaf6"

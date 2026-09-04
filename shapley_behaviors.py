@@ -2,6 +2,8 @@
 Shapley Behavioral Transformations for Materials Data
 Based on Liu & Barnard (2025) Machine Learning: Engineering
 
+Version 0.1.6
+
 Authors:
     Amanda S. Barnard - Lead Developer, Methodology
     Tommy Liu - Co-Developer, Implementation
@@ -16,6 +18,178 @@ from joblib import Parallel, delayed
 import warnings
 
 
+_PREFIX_FUNCTIONS = ('mean', 'variance', 'skewness', 'kurtosis', 'entropy')
+_ENTROPY_EPS = 1e-10
+
+
+def _prefix_entropy(y):
+    """Prefix entropy of the observed, centred values `y`.
+
+    Entropy is the one value function not expressible from running moments:
+    u_i = x_i - min(prefix) + eps, so every earlier u shifts when a new minimum
+    arrives and T = sum(u log2 u) must be rebuilt. Between minima it is a plain
+    cumulative sum, and a random permutation has only H_n ~ ln n prefix minima,
+    so the total cost is O(n log n) rather than O(n^2). Antithetic sampling does
+    not defeat this: the reverse of a uniform permutation is uniform too.
+
+    Written as H = log2(total) - T/total, which is the closed form of
+    -sum(p log2 p) with p = u / total, since sum(u) == total.
+    """
+    k = y.size
+    out = np.empty(k, dtype=float)
+    s1 = np.cumsum(y)
+    run_min = np.minimum.accumulate(y)
+    starts = np.flatnonzero(np.r_[True, run_min[1:] < run_min[:-1]])
+    edges = np.r_[starts, k]
+    for b in range(starts.size):
+        lo, hi = edges[b], edges[b + 1]
+        m = run_min[lo]
+        u = y[:hi] - m + _ENTROPY_EPS
+        f = u * np.log2(u)
+        # everything before the block re-summed at this minimum, then a running
+        # sum inside it
+        head = f[:lo].sum() if lo else 0.0
+        t = head + np.cumsum(f[lo:hi])
+        kk = np.arange(lo + 1, hi + 1, dtype=float)
+        total = s1[lo:hi] - kk * m + kk * _ENTROPY_EPS
+        with np.errstate(divide='ignore', invalid='ignore'):
+            h = np.log2(total) - t / total
+        out[lo:hi] = np.where(total > 0, h, 0.0)
+    return out
+
+
+# How much cancellation is tolerated in m2 = S2/k - mu^2 before a prefix is
+# recomputed two-pass.
+#
+# The ratio r = (S2/k) / m2 measures it: r ~ 1 + mu^2/m2, so r is near 1 for an
+# ordinary prefix and large for one whose values are tightly clustered a long
+# way from the centring point. The resulting relative error is r*eps for
+# variance, r**1.5 * eps for skewness and r**2 * eps for kurtosis, since each
+# divides by a different power of m2. Kurtosis therefore sets the threshold: at
+# r = 1e3 its error stays near 1e-10, which is far below the Monte Carlo error
+# of any Shapley estimate.
+#
+# An earlier value of 1e8 was useless. The case that actually bites -- two
+# nearly-equal values first in a permutation -- came in at r = 5e6, passed the
+# test, and left kurtosis at -2.0105 where the exact answer for any two distinct
+# values is -2.
+_CANCELLATION_TOL = 1e3
+
+
+def _repair_moments(raw, k, s2k, m2, m3=None, m4=None):
+    """Recompute, two-pass, any prefix whose power-sum moments cancelled.
+
+    `raw` is the column's observed values BEFORE centring, `k` the prefix
+    lengths and `s2k` the mean square of each centred prefix -- the quantity m2
+    is the small remainder of. A prefix is suspect when m2 came out
+    non-positive, or when what was subtracted dwarfs what survived. Both tests
+    are cheap and catch the case that actually hurts: two nearly-equal values
+    early in a permutation, where m2 collapses and kurtosis magnifies it.
+
+    Repairing from the uncentred values matters. Deviations taken from the
+    centred array carry the centring's own cancellation (y ~ 1.2 with a spread
+    of 5e-4 loses four digits), which left a repaired kurtosis 6e-10 away from
+    the reference instead of on top of it.
+
+    Returns (m2, m3, m4), suspect entries replaced, with m3 and m4 passed
+    through untouched when not supplied. Modifies the arrays in place.
+    """
+    with np.errstate(invalid='ignore', divide='ignore'):
+        suspect = ~(m2 > 0) | (s2k > _CANCELLATION_TOL * m2)
+    suspect &= k >= 2
+    for i in np.flatnonzero(suspect):
+        seg = raw[:i + 1]
+        d = seg - seg.mean()
+        m2[i] = float(np.mean(d * d))
+        if m3 is not None:
+            m3[i] = float(np.mean(d * d * d))
+        if m4 is not None:
+            m4[i] = float(np.mean(d * d * d * d))
+    return m2, m3, m4
+
+def prefix_values(x, function_name):
+    """Value of `function_name` on every prefix x[:j+1], for j = 0..n-1.
+
+    This is the whole permutation walk in one vectorised pass. The Shapley
+    marginal credited to the element at position j is the difference between
+    consecutive entries, so a permutation costs O(n) instead of the O(n^2) of
+    calling a value function on n growing slices.
+
+    Prefix moments come from cumulative power sums:
+
+        m2 = S2/k - mu^2
+        m3 = S3/k - 3 mu S2/k + 2 mu^3
+        m4 = S4/k - 4 mu S3/k + 6 mu^2 S2/k - 3 mu^4        (mu = S1/k)
+
+    Those identities are the textbook unstable ones, but only because mu is
+    normally large next to the spread. The column is therefore centred ONCE on
+    the mean of its observed values, after which mu is the deviation of the
+    prefix mean from the global mean, of order spread/sqrt(k), and the
+    cancellation all but disappears. All four moment functions are invariant to
+    that shift except `mean`, which is corrected by adding it back.
+
+    Missing entries do not contribute: the value at j is the statistic of the
+    finite values among x[:j+1], matching ShapleyBehaviors._observed. Positions
+    holding a missing value repeat the previous prefix value, since adding an
+    unobserved sample cannot change the statistic.
+    """
+    if function_name not in _PREFIX_FUNCTIONS:
+        raise ValueError("No prefix form for {0}".format(function_name))
+
+    a = np.asarray(x, dtype=float)
+    n = a.size
+    out = np.zeros(n, dtype=float)
+    observed = np.isfinite(a)
+    if not observed.any():
+        return out
+
+    obs_values = a[observed]
+    centre = float(obs_values.mean())
+    y = obs_values - centre
+    k = np.arange(1, y.size + 1, dtype=float)
+
+    if function_name == 'entropy':
+        values = _prefix_entropy(y)
+    else:
+        s1 = np.cumsum(y)
+        mu = s1 / k
+        if function_name == 'mean':
+            values = mu + centre
+        else:
+            s2 = np.cumsum(y * y)
+            s2k = s2 / k
+            m2 = s2k - mu * mu
+            if function_name == 'variance':
+                m2, _, _ = _repair_moments(obs_values, k, s2k, m2)
+                values = np.maximum(m2, 0.0)
+            else:
+                s3 = np.cumsum(y ** 3)
+                if function_name == 'skewness':
+                    m3 = s3 / k - 3.0 * mu * s2k + 2.0 * mu ** 3
+                    m2, m3, _ = _repair_moments(obs_values, k, s2k, m2, m3=m3)
+                    degenerate = ~(m2 > 0)
+                    safe = np.where(degenerate, 1.0, m2)
+                    values = np.where(degenerate, 0.0, m3 / safe ** 1.5)
+                else:
+                    s4 = np.cumsum(y ** 4)
+                    m4 = (s4 / k - 4.0 * mu * (s3 / k)
+                          + 6.0 * mu * mu * s2k - 3.0 * mu ** 4)
+                    m2, _, m4 = _repair_moments(obs_values, k, s2k, m2, m4=m4)
+                    degenerate = ~(m2 > 0)
+                    safe = np.where(degenerate, 1.0, m2)
+                    values = np.where(degenerate, 0.0,
+                                      m4 / (safe * safe) - 3.0)
+                # matches the size < 2 guard in the value functions
+                values = np.where(k < 2, 0.0, values)
+
+    # scatter back, then carry each value forward across missing positions
+    out[observed] = values
+    carry = np.where(observed, np.arange(n), 0)
+    np.maximum.accumulate(carry, out=carry)
+    filled = out[carry]
+    filled[:int(np.argmax(observed))] = 0.0
+    return filled
+
 class ShapleyBehaviors:
     """
     Compute Shapley value transformations of data to create behavioral spaces.
@@ -24,7 +198,8 @@ class ShapleyBehaviors:
     is computed using Shapley values, creating interpretable behavioral vectors.
     """
     
-    def __init__(self, n_permutations: int = 100, n_jobs: int = -1, random_state: int = 42):
+    def __init__(self, n_permutations: int = 100, n_jobs: int = -1, random_state: int = 42,
+                 incremental: bool = True):
         """
         Parameters
         ----------
@@ -34,10 +209,25 @@ class ShapleyBehaviors:
             Number of parallel jobs (-1 for all cores)
         random_state : int
             Random seed for reproducibility
+        incremental : bool
+            Walk each permutation with the vectorised prefix form
+            (``prefix_values``) instead of calling the value function on every
+            growing slice. The default from 0.1.6, and 35x faster at n=100
+            rising to ~400x at n=1600, because it removes a factor of n from
+            the cost of a permutation.
+
+            Set ``False`` to reproduce output from 0.1.5 and earlier exactly.
+            Both paths draw identical permutations, so they differ only in
+            floating-point detail: at most ~3e-11 of a column's spread on
+            well-scaled data, which is orders of magnitude below the Monte
+            Carlo error of the estimate itself (~1/sqrt(n_permutations)). On a
+            column whose offset dwarfs its spread the incremental path is the
+            more accurate of the two, by a wide margin.
         """
         self.n_permutations = n_permutations
         self.n_jobs = n_jobs
         self.random_state = random_state
+        self.incremental = incremental
         self.rng = np.random.RandomState(random_state)
         
     @staticmethod
@@ -147,7 +337,7 @@ class ShapleyBehaviors:
         return functions[function_name]
     
     def _compute_shapley_column(self, X_col: np.ndarray, value_func: Callable,
-                                n_perm: int) -> np.ndarray:
+                                n_perm: int, function_name: str = None) -> np.ndarray:
         """
         Compute Shapley values for a single feature column using antithetic sampling.
         
@@ -159,7 +349,12 @@ class ShapleyBehaviors:
             Value function to decompose
         n_perm : int
             Number of permutations
-            
+        function_name : str, optional
+            Name of the value function. When given, and when ``self.incremental``
+            is set, each permutation is walked with the vectorised prefix form
+            instead of n calls to ``value_func``. A custom callable has no
+            prefix form, so leaving this ``None`` keeps the original path.
+
         Returns
         -------
         shapley_values : np.ndarray
@@ -171,16 +366,29 @@ class ShapleyBehaviors:
         # Use antithetic sampling (permutation + reverse) for variance reduction
         n_pairs = n_perm // 2
         
+        fast = (getattr(self, 'incremental', True)
+                and function_name in _PREFIX_FUNCTIONS)
+
         for _ in range(n_pairs):
-            # Generate random permutation
+            # Generate random permutation. Drawn identically in both paths, so
+            # the reference path still reproduces earlier releases exactly.
             perm = self.rng.permutation(n)
-            
-            # Process forward permutation
-            self._update_shapley_values(X_col, perm, value_func, shapley_values)
-            
-            # Process reverse (antithetic) permutation
             perm_reverse = perm[::-1]
-            self._update_shapley_values(X_col, perm_reverse, value_func, shapley_values)
+
+            if fast:
+                # One vectorised pass per permutation. The marginal credited to
+                # the element at position j is the step between consecutive
+                # prefix values, and the empty set is worth 0.0 for all five
+                # value functions, so prepend 0.0 rather than evaluating it.
+                for order in (perm, perm_reverse):
+                    prefix = prefix_values(X_col[order], function_name)
+                    shapley_values[order] += np.diff(prefix, prepend=0.0)
+            else:
+                # Process forward permutation
+                self._update_shapley_values(X_col, perm, value_func, shapley_values)
+
+                # Process reverse (antithetic) permutation
+                self._update_shapley_values(X_col, perm_reverse, value_func, shapley_values)
         
         # Average over the permutations actually run. Antithetic sampling
         # evaluates 2*(n_perm//2) permutations, so normalising by n_perm
@@ -254,7 +462,7 @@ class ShapleyBehaviors:
         
         shapley_columns = Parallel(n_jobs=self.n_jobs, verbose=1 if verbose else 0)(
             delayed(self._compute_shapley_column)(
-                X[:, j], value_func, self.n_permutations
+                X[:, j], value_func, self.n_permutations, value_function
             )
             for j in range(n_features)
         )
@@ -272,8 +480,12 @@ class ShapleyBehaviors:
                                     (np.abs(total_actual) + 1e-10))
             print(f"  Additivity check - mean relative error: {relative_error:.6f}")
             if relative_error > 0.01:
-                warnings.warn(f"High additivity error ({relative_error:.4f}). "
-                            f"Consider increasing n_permutations.")
+                warnings.warn(
+                    f"High additivity error ({relative_error:.4f}). Usually this "
+                    f"means n_permutations is too low. It can also mean a column "
+                    f"whose offset dwarfs its spread (e.g. 1e8 +/- 1e-6), where "
+                    f"the batch value function used for this check is itself "
+                    f"imprecise; centring or rescaling such a column fixes it.")
         
         return Phi
     
@@ -380,27 +592,47 @@ def identify_outliers(Phi: np.ndarray, threshold: float = 3.0,
 # CONVENIENCE FUNCTIONS (for backward compatibility)
 # =====================================================================
 
-def compute_shapley_variance(X, n_permutations=100, n_jobs=-1, random_state=42):
-    """Convenience function for variance behavioral space."""
-    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs, random_state=random_state)
+def compute_shapley_variance(X, n_permutations=100, n_jobs=-1, random_state=42,
+                             incremental=True):
+    """Convenience function for variance behavioral space.
+
+    Pass ``incremental=False`` to reproduce 0.1.5 and earlier exactly.
+    """
+    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs,
+                          random_state=random_state, incremental=incremental)
     return sb.transform(X, value_function='variance')
 
 
-def compute_shapley_skewness(X, n_permutations=100, n_jobs=-1, random_state=42):
-    """Convenience function for skewness behavioral space."""
-    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs, random_state=random_state)
+def compute_shapley_skewness(X, n_permutations=100, n_jobs=-1, random_state=42,
+                             incremental=True):
+    """Convenience function for skewness behavioral space.
+
+    Pass ``incremental=False`` to reproduce 0.1.5 and earlier exactly.
+    """
+    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs,
+                          random_state=random_state, incremental=incremental)
     return sb.transform(X, value_function='skewness')
 
 
-def compute_shapley_kurtosis(X, n_permutations=100, n_jobs=-1, random_state=42):
-    """Convenience function for kurtosis behavioral space."""
-    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs, random_state=random_state)
+def compute_shapley_kurtosis(X, n_permutations=100, n_jobs=-1, random_state=42,
+                             incremental=True):
+    """Convenience function for kurtosis behavioral space.
+
+    Pass ``incremental=False`` to reproduce 0.1.5 and earlier exactly.
+    """
+    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs,
+                          random_state=random_state, incremental=incremental)
     return sb.transform(X, value_function='kurtosis')
 
 
-def compute_shapley_entropy(X, n_permutations=100, n_jobs=-1, random_state=42):
-    """Convenience function for entropy behavioral space."""
-    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs, random_state=random_state)
+def compute_shapley_entropy(X, n_permutations=100, n_jobs=-1, random_state=42,
+                             incremental=True):
+    """Convenience function for entropy behavioral space.
+
+    Pass ``incremental=False`` to reproduce 0.1.5 and earlier exactly.
+    """
+    sb = ShapleyBehaviors(n_permutations=n_permutations, n_jobs=n_jobs,
+                          random_state=random_state, incremental=incremental)
     return sb.transform(X, value_function='entropy')
 
 

@@ -48,9 +48,12 @@ NOTES:
   summarised as mean/std/min/median/max and drawn as boxplots. Categorical
   labels are summarised as dominant category and share, with a full
   cluster-by-category cross-tab CSV, and drawn as stacked composition bars.
-- Output file names are keyed on DATASET_NAME only, not SPACE. To cluster more
-  than one behavioral space of the same dataset, vary DATASET_NAME per run
-  (e.g. DATASET_NAME = "ABC_variance") or the second run overwrites the first.
+- Output file names are keyed on OUTPUT_STEM, which defaults to DATASET_NAME
+  and so does NOT include SPACE. Clustering a second behavioral space of the
+  same dataset therefore writes over the first run's CSVs and figures. The run
+  now records which space produced its outputs and warns before overwriting a
+  different one, naming the files at risk. To keep both, either set
+  OUTPUT_STEM = f"{DATASET_NAME}_{SPACE}" or vary DATASET_NAME per run.
 - MAX_COMPOSITION_ROWS caps the PRINTED feature-composition table (default None
   = print every feature). Useful for wide feature sets; the CSV is unaffected
   and always holds every feature.
@@ -89,6 +92,10 @@ SPACE = globals().get('SPACE', 'skewness')
 K = int(globals().get('K', 6))
 SEED = int(globals().get('SEED', 42))
 DATASET_LABEL = globals().get('DATASET_LABEL', DATASET_NAME)
+# Prefix for every output file. Defaults to DATASET_NAME, which is what earlier
+# versions used, so existing paths do not move. Set it to
+# f"{DATASET_NAME}_{SPACE}" to keep several spaces of one dataset side by side.
+OUTPUT_STEM = globals().get('OUTPUT_STEM', DATASET_NAME)
 COLORS = globals().get(
     'COLORS', ['blue', 'red', 'orange', 'cyan', 'green', 'purple', 'yellow',
                'brown', 'pink', 'olive'])
@@ -184,9 +191,50 @@ def build_cluster_table(labels, ordered_ids, letters):
     return clusters
 
 
+def warn_if_overwriting_another_space():
+    """Warn when this run would overwrite outputs made from a different space.
+
+    Reads and then rewrites a small marker beside the outputs recording which
+    space wrote them. Silence here used to mean a completed variance analysis
+    was simply gone once the kurtosis run finished.
+    """
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    marker = os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_run.txt')
+    previous = None
+    if os.path.exists(marker):
+        try:
+            with open(marker, 'r', encoding='utf-8') as fh:
+                previous = fh.read().strip().split('\t')[0] or None
+        except OSError:
+            previous = None
+
+    if previous is not None and previous != SPACE:
+        at_risk = sorted(
+            f for f in os.listdir(OUTPUT_DIR)
+            if f.startswith(f'{OUTPUT_STEM}_cluster_') and not f.endswith('_run.txt'))
+        print("!" * 70)
+        print(f"WARNING: {OUTPUT_DIR}/ already holds a cluster analysis of the "
+              f"'{previous}' space")
+        print(f"         under the same prefix '{OUTPUT_STEM}'. This run "
+              f"(space='{SPACE}') overwrites it.")
+        if at_risk:
+            shown = ", ".join(at_risk[:6])
+            more = f" (+{len(at_risk) - 6} more)" if len(at_risk) > 6 else ""
+            print(f"         {len(at_risk)} file(s) affected: {shown}{more}")
+        print("         To keep both, set before running:")
+        print('             OUTPUT_STEM = f"{DATASET_NAME}_{SPACE}"')
+        print("!" * 70)
+
+    try:
+        with open(marker, 'w', encoding='utf-8') as fh:
+            fh.write(f"{SPACE}\tK={K}\tseed={SEED}\n")
+    except OSError:
+        pass
+
+
 def export_cluster_members(df, labels, pc1, pc2, clusters):
     """Write a sample list and full-data CSV for each cluster."""
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    warn_if_overwriting_another_space()
     sample_ids = df.index.to_numpy()
     print("=" * 70)
     print(f"K-MEANS CLUSTER ANALYSIS: {DATASET_NAME.upper()}  (space={SPACE})")
@@ -201,11 +249,11 @@ def export_cluster_members(df, labels, pc1, pc2, clusters):
         })
         letter = meta['letter']
         members.to_csv(
-            os.path.join(OUTPUT_DIR, f'{DATASET_NAME}_cluster_{letter}_samples.csv'),
+            os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_{letter}_samples.csv'),
             index=False)
         # Positional indexing: ID labels may repeat (e.g. duplicate alloy names)
         df.iloc[members['Array_Index'].values].to_csv(
-            os.path.join(OUTPUT_DIR, f'{DATASET_NAME}_cluster_{letter}_full_data.csv'))
+            os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_{letter}_full_data.csv'))
         print(f"  {name}: n={int(mask.sum())} "
               f"({100 * mask.sum() / len(labels):.1f}%)  "
               f"-> cluster_{letter}_samples.csv / _full_data.csv")
@@ -250,7 +298,7 @@ def target_property_summary(df, labels, clusters):
         rows.append(row)
     summary = pd.DataFrame(rows).set_index('Cluster')
     summary.to_csv(
-        os.path.join(OUTPUT_DIR, f'{DATASET_NAME}_cluster_property_summary.csv'))
+        os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_property_summary.csv'))
     print("\n" + "=" * 70)
     print("TARGET PROPERTY SUMMARY PER CLUSTER")
     print("=" * 70)
@@ -268,11 +316,11 @@ def target_property_summary(df, labels, clusters):
         cross = cross.reindex(order)
         pct = 100.0 * cross.div(cross.sum(axis=1), axis=0)
         pct.to_csv(os.path.join(
-            OUTPUT_DIR, f'{DATASET_NAME}_cluster_{lab}_composition.csv'))
+            OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_{lab}_composition.csv'))
         print(f"\n{lab} composition per cluster (% of cluster):")
         with pd.option_context('display.max_columns', None, 'display.width', 200):
             print(pct.round(1))
-        print(f"  -> {DATASET_NAME}_cluster_{lab}_composition.csv")
+        print(f"  -> {OUTPUT_STEM}_cluster_{lab}_composition.csv")
 
     return summary
 
@@ -285,7 +333,7 @@ def feature_composition_summary(df, labels, feature_columns, clusters):
     comp.index.name = 'Feature'
     comp['OVERALL'] = df[feature_columns].mean()
     comp.to_csv(
-        os.path.join(OUTPUT_DIR, f'{DATASET_NAME}_cluster_composition_summary.csv'))
+        os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_composition_summary.csv'))
     print("\n" + "=" * 70)
     print("FEATURE COMPOSITION SUMMARY PER CLUSTER (mean value)")
     print("=" * 70)
@@ -319,7 +367,7 @@ def plot_clusters_pc_space(labels, pc1, pc2, clusters):
     ax.legend(fontsize=8, markerscale=2)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, f'{DATASET_NAME}_cluster_pc_space.png'),
+    plt.savefig(os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_pc_space.png'),
                 dpi=300, bbox_inches='tight')
     plt.show()
 
@@ -372,7 +420,10 @@ def plot_property_boxplots(df, labels, clusters):
         axk.set_title(f'{lab} by cluster', fontsize=13)
         axk.grid(alpha=0.3, axis='y')
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, f'{DATASET_NAME}_cluster_property_boxplots.png'),
+    # Name kept for continuity even though categorical labels render as
+    # stacked composition bars rather than boxplots; downstream notebooks and
+    # manuscripts already reference this path.
+    plt.savefig(os.path.join(OUTPUT_DIR, f'{OUTPUT_STEM}_cluster_property_boxplots.png'),
                 dpi=300, bbox_inches='tight')
     plt.show()
 
