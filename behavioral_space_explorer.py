@@ -136,6 +136,20 @@ def compute_clustering_statistics(X, random_state=42):
     return stats
 
 
+def _nearest(dists):
+    """Nearest-neighbour distance per row, dropping rows that have none.
+
+    A masked distance is NaN when two rows share no observed dimension, and at
+    20% missing over four columns that happens to about one pair in sixty. Such
+    a row has no nearest neighbour to contribute, so it is left out instead of
+    turning the whole statistic into NaN. Infinity stands in for "not
+    comparable" here for the same reason it masks a point's distance to itself.
+    """
+    finite = np.where(np.isfinite(dists), dists, np.inf)
+    nearest = np.min(finite, axis=1)
+    return nearest[np.isfinite(nearest)]
+
+
 def hopkins_statistic(X, n_samples=None, random_state=42):
     """Compute Hopkins statistic for clustering tendency."""
     rng = np.random.RandomState(random_state)
@@ -148,15 +162,25 @@ def hopkins_statistic(X, n_samples=None, random_state=42):
     
     scaler = MinMaxScaler()
     X_scaled = scaler.fit_transform(X)
-    
+
     sample_indices = rng.choice(n, size=n_samples, replace=False)
     X_sample = X_scaled[sample_indices]
-    
-    min_vals = X_scaled.min(axis=0)
-    max_vals = X_scaled.max(axis=0)
+
+    # Observed values only. MinMaxScaler propagates a NaN into the column
+    # bounds, and rng.uniform then raises "Range exceeds valid bounds" before
+    # anything is computed. A column with nothing observed contributes no
+    # spread, so it collapses to a point rather than poisoning the draw.
+    min_vals = np.nan_to_num(np.nanmin(X_scaled, axis=0), nan=0.0)
+    max_vals = np.nan_to_num(np.nanmax(X_scaled, axis=0), nan=0.0)
+    max_vals = np.maximum(max_vals, min_vals)
     X_random = rng.uniform(min_vals, max_vals, size=(n_samples, X_scaled.shape[1]))
-    
-    from scipy.spatial.distance import cdist
+
+    # Masked distance: summed over the dimensions two rows share and rescaled
+    # by d/m, so a gap costs coverage instead of being filled with a guess.
+    from sklearn.metrics.pairwise import nan_euclidean_distances
+
+    def cdist(a, b, metric='euclidean'):
+        return nan_euclidean_distances(a, b)
     
     # Distances for real samples. Each sampled point's own column must be
     # masked directly: dist_real[:, sample_indices] is an advanced-indexing
@@ -164,14 +188,19 @@ def hopkins_statistic(X, n_samples=None, random_state=42):
     # sampled point finds itself at distance 0 (H degenerates to exactly 1).
     dist_real = cdist(X_sample, X_scaled, metric='euclidean')
     dist_real[np.arange(len(sample_indices)), sample_indices] = np.inf
-    u = np.min(dist_real, axis=1)
-    
+    u = _nearest(dist_real)
+
     # Distances for random samples
     dist_random = cdist(X_random, X_scaled, metric='euclidean')
-    w = np.min(dist_random, axis=1)
-    
+    w = _nearest(dist_random)
+
+    if u.size == 0 or w.size == 0:
+        # Nothing shares an observed dimension with anything, so there is no
+        # nearest neighbour to measure. Undefined, and said so.
+        return np.nan
+
     H = np.sum(w) / (np.sum(u) + np.sum(w))
-    
+
     return H
 
 
@@ -447,7 +476,22 @@ def analyze_and_visualize(X, behavioral_spaces, labels_dict,
     print("ANALYZING BEHAVIORAL SPACES")
     print("="*70)
     
-    all_spaces = {'original': X}
+    # The behavioural spaces are always finite: the value functions reduce
+    # over observed values, so a missing entry contributes a zero marginal. The
+    # RAW matrix is a different matter, and the PCA and k-means below have no
+    # masked form, so an incomplete original is reported and set aside rather
+    # than imputed to keep a figure alive.
+    all_spaces = {}
+    _Xarr = np.asarray(X, dtype=float)
+    n_missing = int((~np.isfinite(_Xarr)).sum())
+    if n_missing:
+        print("\nNote: the original feature matrix has {0} missing values "
+              "({1:.1%}), so it is left out of the space comparison. PCA and "
+              "k-means need complete rows and the only way to supply them "
+              "would be to impute. The behavioural spaces are "
+              "unaffected.".format(n_missing, n_missing / _Xarr.size))
+    else:
+        all_spaces['original'] = X
     all_spaces.update(behavioral_spaces)
     
     hopkins_scores = {}
@@ -471,7 +515,11 @@ def analyze_and_visualize(X, behavioral_spaces, labels_dict,
         hopkins_scores[name] = H
         hopkins_pvalues[name] = p_val
         
-        clustering_tendency = "CLUSTERED" if H > 0.7 else "INTERMEDIATE" if H > 0.5 else "RANDOM"
+        # NaN > 0.7 and NaN > 0.5 are both False, so an undefined H would
+        # otherwise be reported as RANDOM, which is a different claim.
+        clustering_tendency = ("NOT COMPUTABLE" if not np.isfinite(H)
+                               else "CLUSTERED" if H > 0.7
+                               else "INTERMEDIATE" if H > 0.5 else "RANDOM")
         significance = "***" if p_val < 0.001 else "**" if p_val < 0.01 else "*" if p_val < 0.05 else "ns"
         
         print(f"Hopkins statistic: {H:.4f} ({clustering_tendency}) p={p_val:.4f} {significance}")

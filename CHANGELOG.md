@@ -1,6 +1,46 @@
 # Changelog
 
-## Unreleased
+## 0.1.8
+
+### Fixed
+
+- **`behavioral_space_explorer.py` crashed on any dataset with missing values.**
+  0.1.5 made the five value functions NaN-native, but the ANALYSIS stage still
+  assumed complete data. `analyze_and_visualize` put the RAW feature matrix
+  beside the behavioural spaces:
+
+      all_spaces = {'original': X}
+
+  `MinMaxScaler` carried a NaN into the per-column bounds and `rng.uniform`
+  raised `OverflowError: Range exceeds valid bounds` before a single figure was
+  drawn. The behavioural spaces computed perfectly first, which made it look
+  like a plotting problem. Hit on a clinical dataset at 19.5% missing.
+
+  Two changes:
+
+  - `hopkins_statistic` now takes its bounds over observed values and measures
+    distances with `nan_euclidean_distances`, summed over the dimensions two
+    rows share and rescaled by d/m. Rows that share no observed dimension with
+    anything have no nearest neighbour and are left out rather than turning the
+    statistic into NaN; when nothing at all is comparable, H is undefined and is
+    reported as `NOT COMPUTABLE` rather than falling through to `RANDOM`.
+  - The raw matrix joins the space comparison only when it is complete. PCA and
+    k-means have no masked form here, so the alternative would be to impute, and
+    the message says exactly that instead of dropping the space in silence.
+
+  The behavioural spaces themselves were never affected: a missing entry
+  contributes a zero marginal, so every space is finite. That is now asserted
+  in the tests.
+
+### Added
+
+- `tests/test_space_explorer_missing.py`: five tests that run the explorer end
+  to end on data with gaps. Unit tests would not have caught this, because the
+  defect lived in the seam between a NaN-native engine and a complete-data
+  analysis, and because the file ships as a `%run -i` script rather than an
+  importable module. Suite is 97 tests, from 92.
+
+## 0.1.7
 
 ### Fixed
 

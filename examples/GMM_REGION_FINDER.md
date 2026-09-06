@@ -5,7 +5,7 @@ PCA projection of any Shapley behavioral space using Gaussian Mixture Models
 (GMM) with a BIC elbow criterion, then generates a `USER_REGIONS` dictionary
 ready to pass to `behavioral_region_explorer.py`.
 
-> **How this relates to the shipped tools (0.1.6).**
+> **How this relates to the shipped tools (0.1.8).**
 > `behavioral_region_explorer.py` now has integrated gap-based break
 > detection (run with `USER_REGIONS = None`), which is the recommended
 > first choice: it needs no component-count selection and its boundaries

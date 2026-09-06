@@ -2,7 +2,7 @@
 Shapley Behavioral Transformations for Materials Data
 Based on Liu & Barnard (2025) Machine Learning: Engineering
 
-Version 0.1.6
+Version 0.1.8
 
 Authors:
     Amanda S. Barnard - Lead Developer, Methodology

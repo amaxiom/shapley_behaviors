@@ -129,6 +129,20 @@ MAX_OUTLIERS_PER_SPACE = 10  # Comprehensive analysis
 - **5:** Balanced (default)
 - **10+:** Deep dive into outlier characteristics
 
+### SHOW_PLOTS
+**Type:** Boolean
+**Default:** `True`
+**Examples:**
+```python
+SHOW_PLOTS = True    # display each figure in the notebook as well as saving it
+SHOW_PLOTS = False   # save only, display nothing
+```
+**Purpose:** Whether figures are displayed as well as written to `OUTPUT_DIR`.
+- Saving and displaying are independent: every figure is written either way
+- Set `False` for batch or headless runs, or to keep a long notebook short
+- Before 0.1.7 the space explorer displayed nothing at all, because display
+  was conditional on *not* saving and every plot call supplied a save path
+
 ### BEHAVIORAL_SPACES_FILE (region explorer only)
 **Type:** String (path)  
 **Example:** `BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Al_behavioral_spaces.npy'`  
@@ -177,7 +191,15 @@ K = 6                   # number of clusters (default 6)
 SEED = 42               # reproducibility (default 42)
 DATASET_LABEL = 'ABC'   # prefix for cluster names (default DATASET_NAME)
 COLORS = [...]          # optional; 10-colour default palette cycles
+OUTPUT_STEM = 'ABC_variance'   # prefix for output files (default DATASET_NAME)
 ```
+
+`OUTPUT_STEM` keys every output file. It defaults to `DATASET_NAME`, which
+does **not** include `SPACE`, so clustering a second behavioral space of the
+same dataset writes over the first run's CSVs and figures. Since 0.1.7 a run
+records which space produced its outputs and warns before overwriting a
+different one, naming the files at risk. To keep several spaces side by side,
+set `OUTPUT_STEM = f"{DATASET_NAME}_{SPACE}"`.
 
 Clusters are exclusive (every sample belongs to exactly one) and are
 lettered A, B, C, ... left-to-right by PC1 centroid.
@@ -187,7 +209,7 @@ labels are summarised as mean/std/min/median/max and drawn as boxplots.
 Categorical labels are auto-detected and instead summarised by their
 dominant category, that category's share of the cluster, and the number
 of categories present, with a full cluster-by-category breakdown written
-to `{DATASET_NAME}_cluster_{label}_composition.csv` (percentages within
+to `{OUTPUT_STEM}_cluster_{label}_composition.csv` (percentages within
 each cluster) and drawn as a stacked composition bar.
 
 ### USER_REGIONS (region explorer only)
