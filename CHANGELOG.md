@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`behavioral_space_explorer.py` never displayed a figure.** Display was
+  guarded on whether a file was being written:
+
+      if save_path:
+          plt.savefig(...); plt.close()
+      else:
+          plt.show()
+
+  All three call sites (label plots, feature-concentration plots, outlier
+  profile plots) build a `save_path`, so the `else` branch was dead. Every
+  figure went to disk and none appeared in the notebook. Saving and showing are
+  independent choices and are now independent statements, with a `SHOW_PLOTS`
+  setting (default `True`) to opt out. Verified on a synthetic run: 15 figures
+  saved and 15 shown, against 15 saved and 0 shown before; `SHOW_PLOTS=False`
+  still saves all 15.
+
+- `behavioral_region_explorer.py` showed six of its seven figures; the seventh,
+  `all_regions_in_original_space`, had its `plt.show()` commented out. It now
+  displays with the rest.
+
+- **`README.md` (repo root) carried 596 stray backslashes** in runs of up to
+  seven, from being round-tripped through an escaping converter more than once.
+  Inside the fenced code blocks a backslash is literal, so none of the
+  quick-start snippets could be copied and run; the badge lines were escaped in
+  prose, where escaping does apply, so they rendered as text instead of images;
+  and the closing horizontal rule rendered as literal dashes. Every one of the
+  596 preceded `_`, `[`, `.` or `-`, so none was load-bearing. The PyPI
+  description is generated from `pypi_staging/README.md`, which was never
+  affected.
+
 ## 0.1.6
 
 ### Changed

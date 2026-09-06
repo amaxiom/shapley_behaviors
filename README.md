@@ -4,11 +4,11 @@
 
 This toolkit provides a family of complementary Python tools for analyzing high-dimensional datasets by transforming raw features into interpretable behavioral spaces that expose clustering patterns invisible in the original data: a space explorer to generate and validate the behavioral transformations, a region explorer with integrated automatic break detection to define and analyze regions of the projections, and a k-means cluster explorer for exclusive cluster-based analysis.
 
-\[!\[Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-\[!\[License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-\[!\[PyPI version](https://badge.fury.io/py/shapley\_behaviors.svg)](https://pypi.org/project/shapley\_behaviors/)
+[![PyPI version](https://badge.fury.io/py/shapley_behaviors.svg)](https://pypi.org/project/shapley_behaviors/)
 
 ## What Does This Do?
 
@@ -40,8 +40,8 @@ Traditional analysis of data often misses important patterns because features in
 ### Setup
 
 ```bash
-git clone https://github.com/amaxiom/shapley\\\\\\\_behaviors.git
-cd shapley\\\\\\\_behaviors
+git clone https://github.com/amaxiom/shapley_behaviors.git
+cd shapley_behaviors
 pip install -r requirements.txt
 ```
 
@@ -55,20 +55,20 @@ import pandas as pd
 
 # Configuration
 SEED = 42
-N\\\\\\\_PERMUTATIONS = 200  # Use 100-1000 depending on dataset size
-N\\\\\\\_JOBS = -1  # Use all CPU cores
+N_PERMUTATIONS = 200  # Use 100-1000 depending on dataset size
+N_JOBS = -1  # Use all CPU cores
 
-DATASET\\\\\\\_NAME = "Mg"
-DATA\\\\\\\_FILE = "mg\\\\\\\_data.csv"
-ID\\\\\\\_COLUMN = "ID"
-DROP\\\\\\\_COLUMNS = \\\\\\\["Condition", "Process", "DOI"]  # Non-feature columns, or None
-LABEL\\\\\\\_COLUMNS = \\\\\\\['Yield\\\\\\\_Strength', 'Tensile\\\\\\\_Strength', 'Ductility']
-OUTPUT\\\\\\\_DIR = 'behavioral\\\\\\\_exploration'
+DATASET_NAME = "Mg"
+DATA_FILE = "mg_data.csv"
+ID_COLUMN = "ID"
+DROP_COLUMNS = ["Condition", "Process", "DOI"]  # Non-feature columns, or None
+LABEL_COLUMNS = ['Yield_Strength', 'Tensile_Strength', 'Ductility']
+OUTPUT_DIR = 'behavioral_exploration'
 
-SELECTED\\\\\\\_FEATURES = \\\\\\\['Al', 'Zn', 'Y']  # Optional: features to visualize, or None
+SELECTED_FEATURES = ['Al', 'Zn', 'Y']  # Optional: features to visualize, or None
 
 # Run analysis
-%run -i behavioral\\\\\\\_space\\\\\\\_explorer.py
+%run -i behavioral_space_explorer.py
 ```
 
 **Output:**
@@ -82,21 +82,21 @@ SELECTED\\\\\\\_FEATURES = \\\\\\\['Al', 'Zn', 'Y']  # Optional: features to vis
 ### Step 2: Detect Break Zones (optional but recommended)
 
 Region boundaries do not need to be guessed. Run the region explorer
-without `USER\\\\\\\_REGIONS` and it reports statistically significant break
+without `USER_REGIONS` and it reports statistically significant break
 zones and satellite candidate gaps along PC1 and PC2 of each requested
 space, saves diagnostic figures, and leaves the detected boundaries in
 the notebook namespace:
 
 ```python
 # Use same configuration as Step 1, plus:
-BREAK\\\\\\\_SPACES = \\\\\\\['variance']    # default: all spaces in the file
-BREAK\\\\\\\_Z\\\\\\\_THRESHOLD = 2.5        # gap significance (z-score)
-MIN\\\\\\\_REGION\\\\\\\_FRACTION = 0.05     # min fraction of samples on each side
-MAX\\\\\\\_STRAGGLER\\\\\\\_FRACTION = 0.02  # merge gaps separated by <= this fraction
+BREAK_SPACES = ['variance']    # default: all spaces in the file
+BREAK_Z_THRESHOLD = 2.5        # gap significance (z-score)
+MIN_REGION_FRACTION = 0.05     # min fraction of samples on each side
+MAX_STRAGGLER_FRACTION = 0.02  # merge gaps separated by <= this fraction
 
-USER\\\\\\\_REGIONS = None            # break detection only
-%run -i behavioral\\\\\\\_region\\\\\\\_explorer.py
-# -> break\\\\\\\_zones, pc1\\\\\\\_zones, pc2\\\\\\\_zones available in the namespace
+USER_REGIONS = None            # break detection only
+%run -i behavioral_region_explorer.py
+# -> break_zones, pc1_zones, pc2_zones available in the namespace
 ```
 
 Gap midpoints make robust rectangle bounds because the gap interior
@@ -108,28 +108,28 @@ Define regions of interest (typically from the detected boundaries)
 and run the region explorer again:
 
 ```python
-USER\\\\\\\_REGIONS = {
-    'high\\\\\\\_strength': {
+USER_REGIONS = {
+    'high_strength': {
         'space': 'variance',
-        'pc1\\\\\\\_range': (0.3, 0.6),
-        'pc2\\\\\\\_range': (-0.2, 0.2),
+        'pc1_range': (0.3, 0.6),
+        'pc2_range': (-0.2, 0.2),
         'description': 'High tensile strength region',
         'color': 'red'
     },
-    'high\\\\\\\_ductility': {
+    'high_ductility': {
         'space': 'variance',
-        'pc1\\\\\\\_range': (-0.5, -0.2),
-        'pc2\\\\\\\_range': (-0.3, 0.3),
+        'pc1_range': (-0.5, -0.2),
+        'pc2_range': (-0.3, 0.3),
         'description': 'High elongation region',
         'color': 'blue'
     }
 }
 
-PLOT\\\\\\\_MODE = 'combined'  # or 'separate'
-BEHAVIORAL\\\\\\\_SPACES\\\\\\\_FILE = 'behavioral\\\\\\\_exploration/Mg\\\\\\\_behavioral\\\\\\\_spaces.npy'
+PLOT_MODE = 'combined'  # or 'separate'
+BEHAVIORAL_SPACES_FILE = 'behavioral_exploration/Mg_behavioral_spaces.npy'
 
 # Run region analysis
-%run -i behavioral\\\\\\\_region\\\\\\\_explorer.py
+%run -i behavioral_region_explorer.py
 ```
 
 **Output:**
@@ -155,7 +155,7 @@ BEHAVIORAL\\\\\\\_SPACES\\\\\\\_FILE = 'behavioral\\\\\\\_exploration/Mg\\\\\\\_
 
 ## Tools Overview
 
-### `behavioral\\\\\\\_space\\\\\\\_explorer.py`
+### `behavioral_space_explorer.py`
 
 **Purpose:** Generate and analyze behavioral transformations
 
@@ -170,15 +170,15 @@ BEHAVIORAL\\\\\\\_SPACES\\\\\\\_FILE = 'behavioral\\\\\\\_exploration/Mg\\\\\\\_
 
 **When to use:** Starting point for any new dataset
 
-### `behavioral\\\\\\\_region\\\\\\\_explorer.py`
+### `behavioral_region_explorer.py`
 
 **Purpose:** Detect region boundaries automatically, then analyze user-defined regions in behavioral spaces
 
 **Key Features:**
 
-* **Integrated automatic break detection:** statistically significant nearest-neighbor gaps merge into break zones; strong sub-threshold gaps are reported as satellite candidates (run without `USER\\\\\\\_REGIONS` for a break-detection-only pass)
+* **Integrated automatic break detection:** statistically significant nearest-neighbor gaps merge into break zones; strong sub-threshold gaps are reported as satellite candidates (run without `USER_REGIONS` for a break-detection-only pass)
 * Extract samples from specified PC1/PC2 ranges
-* Quantify compositional enrichment/depletion (Change\_% vs dataset average)
+* Quantify compositional enrichment/depletion (Change_% vs dataset average)
 * Compare labels across regions (box plots, statistics)
 * **Validate** regions by comparing original vs behavioral space
 * Works with continuous and categorical labels
@@ -186,7 +186,7 @@ BEHAVIORAL\\\\\\\_SPACES\\\\\\\_FILE = 'behavioral\\\\\\\_exploration/Mg\\\\\\\_
 
 **When to use:** After generating behavioral spaces, to find and characterise their internal structure
 
-### `behavioral\\\\\\\_cluster\\\\\\\_explorer.py`
+### `behavioral_cluster_explorer.py`
 
 **Purpose:** K-means cluster analysis of behavioral spaces, as an alternative to rectangular regions
 
@@ -200,7 +200,7 @@ BEHAVIORAL\\\\\\\_SPACES\\\\\\\_FILE = 'behavioral\\\\\\\_exploration/Mg\\\\\\\_
 
 **When to use:** When exclusive, algorithmically-assigned groups are preferred over hand-defined rectangles, or to cross-validate region definitions
 
-### `shapley\\\\\\\_behaviors.py`
+### `shapley_behaviors.py`
 
 **Purpose:** Core Shapley value computation engine
 
@@ -218,33 +218,33 @@ BEHAVIORAL\\\\\\\_SPACES\\\\\\\_FILE = 'behavioral\\\\\\\_exploration/Mg\\\\\\\_
 
 ```
 shapley-behavioral-analysis/
-├── behavioral\\\\\\\_space\\\\\\\_explorer.py    # Main analysis tool
-├── behavioral\\\\\\\_region\\\\\\\_explorer.py   # Break detection + region analysis
-├── behavioral\\\\\\\_cluster\\\\\\\_explorer.py  # K-means cluster analysis
-├── shapley\\\\\\\_behaviors.py            # Core Shapley computations
+├── behavioral_space_explorer.py    # Main analysis tool
+├── behavioral_region_explorer.py   # Break detection + region analysis
+├── behavioral_cluster_explorer.py  # K-means cluster analysis
+├── shapley_behaviors.py            # Core Shapley computations
 ├── README.md
 ├── LICENSE
 ├── requirements.txt
 ├── examples/
-│   ├── gmm\\\\\\\_region\\\\\\\_finder.ipynb     # GMM-based boundary detection (alternative)
-│   ├── GMM\\\\\\\_REGION\\\\\\\_FINDER.md
-│   ├── magnesium\\\\\\\_alloys/
+│   ├── gmm_region_finder.ipynb     # GMM-based boundary detection (alternative)
+│   ├── GMM_REGION_FINDER.md
+│   ├── magnesium_alloys/
 │   │   ├── README.md
-│   │   ├── run\\\\\\\_space\\\\\\\_explorer.py
-│   │   └── run\\\\\\\_region\\\\\\\_explorer.py
+│   │   ├── run_space_explorer.py
+│   │   └── run_region_explorer.py
 │   └── mxenes/
 │       ├── README.md
-│       ├── run\\\\\\\_space\\\\\\\_explorer.py
-│       └── run\\\\\\\_region\\\\\\\_explorer.py
+│       ├── run_space_explorer.py
+│       └── run_region_explorer.py
 └── docs/
-    ├── toolkit\\\\\\\_description.txt
-    ├── CONFIGURATION\\\\\\\_GUIDE.md
-    └── INTERPRETATION\\\\\\\_GUIDE.md
+    ├── toolkit_description.txt
+    ├── CONFIGURATION_GUIDE.md
+    └── INTERPRETATION_GUIDE.md
 ```
 
 ## How It Works
 
-### 1\. Shapley Behavioral Transformation
+### 1. Shapley Behavioral Transformation
 
 For each sample and each feature, compute:
 
@@ -252,7 +252,7 @@ For each sample and each feature, compute:
 
 Where coalition value is a statistical property (variance, skewness, etc.) of the feature subset.
 
-### 2\. Behavioral Spaces
+### 2. Behavioral Spaces
 
 Each transformation creates a new space where:
 
@@ -261,11 +261,11 @@ Each transformation creates a new space where:
 * **Kurtosis space:** Features weighted by contribution to tail heaviness
 * **Entropy space:** Features weighted by contribution to uncertainty/diversity
 
-### 3\. Pattern Discovery
+### 3. Pattern Discovery
 
 Apply PCA to behavioral spaces to find 2D projections where samples cluster by similar behavioral signatures.
 
-### 4\. Validation
+### 4. Validation
 
 **Critical test:** Do regions that cluster in behavioral space also cluster in original space?
 
@@ -314,11 +314,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use this toolkit in your research, please cite:
 
 ```bibtex
-@software{shapley\\\\\\\_behavioral\\\\\\\_analysis,
+@software{shapley_behavioral_analysis,
   author = {Barnard, Amanda S. and Liu, Tommy},
   title = {Shapley Behavioral Analysis Toolkit},
   year = {2026},
-  url = {https://github.com/amaxiom/shapley\_behaviors}
+  url = {https://github.com/amaxiom/shapley_behaviors}
 }
 ```
 
@@ -364,5 +364,5 @@ If you use this toolkit in your research, please cite:
 * [SHAP](https://github.com/slundberg/shap) - General Shapley value ML explainability
 * [Matminer](https://hackingmaterials.lbl.gov/matminer/) - Materials data mining tools
 
-\---
+---
 

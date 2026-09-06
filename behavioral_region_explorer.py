@@ -1271,7 +1271,7 @@ def create_all_regions_original_space_overlay(behavioral_spaces, all_regions, df
     filepath = os.path.join(OUTPUT_DIR, filename)
     plt.savefig(filepath, dpi=300, bbox_inches='tight')
     print(f"\n✓ Saved: {filename}")
-    #plt.show()
+    plt.show()
 
 def main():
     """Main analysis workflow."""

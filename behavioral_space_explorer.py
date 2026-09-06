@@ -87,6 +87,12 @@ if 'CREATE_OUTLIER_PROFILES' not in globals():
 if 'MAX_OUTLIERS_PER_SPACE' not in globals():
     MAX_OUTLIERS_PER_SPACE = 5  # Default: top 5 outliers per space
 
+# Whether to display each figure as well as save it. Every plot call here
+# supplies a save_path, so display used to be unreachable and the tool wrote
+# its figures to disk without ever showing one in the notebook.
+if 'SHOW_PLOTS' not in globals():
+    SHOW_PLOTS = True
+
 np.random.seed(SEED)
 
 
@@ -341,11 +347,14 @@ def plot_pca_space(X, labels, label_names, title, is_continuous=False,
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     
+    # Saving and showing are independent: the figure is written if a path was
+    # given, and displayed if the notebook asked for it.
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-    else:
+    if SHOW_PLOTS:
         plt.show()
+    else:
+        plt.close()
 
 
 def compute_behavioral_spaces(X, n_permutations=100, n_jobs=-1, random_state=42):
@@ -730,11 +739,14 @@ def create_profile_plot(Phi, X, feature_names, sample_idx, space_name,
     plt.tight_layout()
     
     # Save if path provided
+    # Saving and showing are independent: the figure is written if a path was
+    # given, and displayed if the notebook asked for it.
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-    else:
+    if SHOW_PLOTS:
         plt.show()
+    else:
+        plt.close()
     
     return fig, ax
 
