@@ -335,12 +335,12 @@ If you use this toolkit in your research, please cite:
 
 ## Authors
 
-* **Amanda S. Barnard** - *Lead Developer, Methodology* - [amaxiom](https://github.com/amaxiom)
+* **Amanda S. Barnard** - *Lead Developer, Implementation* - [amaxiom](https://github.com/amaxiom)
 
   * Senior Professor and Computational Science Lead, ANU School of Computing
   * Member of the Order of Australia
   * Prime Minister's Prize for Physical Scientist of the Year
-* **Tommy Liu** - *Co-Developer, Implementation* - [uilymmot](https://github.com/uilymmot)
+* **Tommy Liu** - *Co-Developer, Methodology* - [uilymmot](https://github.com/uilymmot)
 
   * Contributed to core algorithm development and validation methodology
 
